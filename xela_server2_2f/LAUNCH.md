@@ -1,0 +1,44 @@
+# Launch Notes
+
+## Parameters
+- `ws_host` (string, default: `localhost`)
+- `ws_port` (int, default: `5000`)
+- `frame_ids_yaml` (string, default: `config/server2_2f_config.yaml`)
+- `header_frame_id` (string, default: empty)
+- `use_ros_time_for_sensor_time` (bool, default: `false`)
+- `publisher_qos_depth` (int, default: `10`)
+- `input_json_path` (string, default: empty)
+- `playback_interval_ms` (int, default: `100`)
+- `playback_loop` (bool, default: `true`)
+
+## Examples
+### Combined CAN init + xela_server_ros2 + xela_server2_2f
+```bash
+source /opt/ros/humble/setup.bash
+source /home/invokelee/xela_robotics/01_dev_ws/install/setup.bash
+ros2 launch xela_server2_2f xela_server2_2f_with_server.launch.py \
+  can_port:=can0 \
+  xela_server_exec:=/etc/xela/xela_server
+```
+
+### WebSocket mode
+```bash
+ros2 run xela_server2_2f xela_server2_2f_node --ros-args \
+  -p ws_host:=localhost \
+  -p ws_port:=5000 \
+  -p frame_ids_yaml:=/home/invokelee/xela_robotics/01_dev_ws/src/xela_server2_2f/config/server2_2f_config.yaml
+```
+
+### File playback mode
+```bash
+ros2 run xela_server2_2f xela_server2_2f_node --ros-args \
+  -p input_json_path:=/home/invokelee/my_moveit_pro/01_mpro_dev_ws/tmp/websocket.json \
+  -p playback_interval_ms:=200 \
+  -p playback_loop:=true
+```
+
+### ROS time override
+```bash
+ros2 run xela_server2_2f xela_server2_2f_node --ros-args \
+  -p use_ros_time_for_sensor_time:=true
+```

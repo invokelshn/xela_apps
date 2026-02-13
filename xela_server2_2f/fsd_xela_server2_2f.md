@@ -1,0 +1,137 @@
+# Functional Specification Document (FSD) - xela_server2_2f
+
+## Phase Checklist
+- [ ] Requirements review complete (inputs, outputs, mapping, parameters confirmed)
+- [ ] Design review complete (architecture, parsing, QoS, error handling confirmed)
+- [ ] Development complete (package structure, node implementation, parameters, logging)
+- [ ] Testing complete (unit tests for parsing, integration test with sample JSON)
+- [ ] Delivery complete (launch instructions and runtime validation)
+
+## 1. Purpose and Scope
+The `xela_server2_2f` app is a ROS 2 node that receives JSON messages over WebSocket
+(`ws://localhost:5000`), converts them to `xela_taxel_msgs/msg/XTaxelSensorArray`,
+and publishes the result on `/x_taxel_2f`.
+
+## 2. Inputs
+### 2.1 WebSocket
+- Host: `localhost`
+- Port: `5000`
+- Protocol: WebSocket (text frames containing JSON)
+
+### 2.2 JSON Schema (based on `tmp/websocket.json`)
+Top-level fields:
+- `message` (integer)
+- `time` (float, seconds)
+- `sensors` (integer)
+- `"1".."N"`: sensor objects keyed by string numbers
+
+Sensor object fields (used by the app):
+- `time` (float, seconds)
+- `sensor` (string that can be parsed to integer)
+- `model` (string)
+- `data` (comma-separated hex values, 72 values)
+- `calibrated` (array of floats, 72 values)
+
+Other fields may exist (e.g., `integer`, `temp`, `ups`) and are ignored.
+
+## 3. Outputs
+### 3.1 Topic
+- Topic: `/x_taxel_2f`
+- Message type: `xela_taxel_msgs/msg/XTaxelSensorArray`
+
+### 3.2 Message Fields
+- `header.stamp`: ROS time at publish moment
+- `header.frame_id`: configurable (default empty string)
+- `md_frame_ids`: list of sensor `model` strings in sensor index order
+- `x_modules`: array of `xela_taxel_msgs/msg/XTaxelSensor`
+
+## 4. Data Mapping
+### 4.1 Sensor Ordering
+Sensor entries are processed in numeric order of keys `"1"`, `"2"`, ... `"N"`.
+
+### 4.2 md_frame_ids
+`md_frame_ids[i] = in."(i+1)".model`
+
+### 4.3 XTaxelSensor Fields
+For each sensor `i` (1-based key):
+- `message`: `in.message`
+- `time`: `in."i".time` (default) or ROS time if override enabled
+- `model`: `in."i".model`
+- `sensor_pos`: integer parsed from `in."i".sensor`
+- `frame_ids`: 24 joint names from YAML list (see below)
+- `taxels`: 24 `Taxel` entries parsed from `data`
+- `forces`: 24 `Forces` entries parsed from `calibrated`
+
+### 4.4 frame_ids Mapping (YAML)
+Source: `list_2f_gripper_joint.yaml` contains 48 joint names.
+- Sensor 1 uses indices 0-23
+- Sensor 2 uses indices 24-47
+
+`sensors` indicates how many numeric sensor objects are present at the top-level.
+For example, `sensors: 2` means keys `"1"` and `"2"` are expected.
+
+If the number of sensors is not 2 or the YAML list has fewer required entries,
+the message is dropped and an error is logged.
+
+### 4.5 data -> Taxel[]
+`data` is a CSV of 72 hex values (uint16). Convert each token to uint16.
+Group sequentially in triples:
+- taxel 0: values 0-2 -> (x, y, z)
+- taxel 1: values 3-5 -> (x, y, z)
+...
+- taxel 23: values 69-71 -> (x, y, z)
+
+### 4.6 calibrated -> Forces[]
+`calibrated` is a list of 72 floats. Group sequentially in triples:
+- force 0: values 0-2 -> (x, y, z)
+...
+- force 23: values 69-71 -> (x, y, z)
+
+## 5. Configuration Parameters
+- `ws_host` (string, default: `localhost`)
+- `ws_port` (int, default: `5000`)
+- `frame_ids_yaml` (string, default: path to `list_2f_gripper_joint.yaml`)
+- `header_frame_id` (string, default: empty)
+- `use_ros_time_for_sensor_time` (bool, default: `false`)
+- `publisher_qos_depth` (int, default: `10`)
+
+## 6. Processing Flow
+1. Connect to WebSocket and subscribe to text messages.
+2. Parse incoming JSON message.
+3. Validate required fields and array lengths.
+4. Load `frame_ids` list (cached after first load).
+5. Build `XTaxelSensorArray` and publish to `/x_taxel_2f`.
+
+## 7. Validation and Error Handling
+- JSON parse failure: warn and drop.
+- Missing required fields: warn and drop.
+- `data` length != 72 or `calibrated` length != 72: warn and drop.
+- `sensor` cannot be parsed to int: warn and drop.
+- YAML list too short or sensor count != 2: error and drop.
+- Any conversion error: warn and drop.
+
+## 8. Logging and Diagnostics
+- Connection established / closed events.
+- Drop counters by reason (parse, validation, conversion).
+- Optional debug: sensor count, array lengths.
+
+## 9. Performance Expectations
+- O(N) conversion per message.
+- Minimal allocations beyond message building.
+
+## 10. Dependencies
+- ROS 2 (rclcpp, std_msgs)
+- `xela_taxel_msgs`, `xela_server_ros2`
+- YAML parser (for `frame_ids` list)
+- WebSocket client library
+
+## 11. Acceptance Criteria
+- When fed `tmp/websocket.json`, node publishes `/x_taxel_2f` with:
+  - 2 `x_modules`
+  - 24 `taxels` and 24 `forces` per module
+  - `frame_ids` matching YAML entries (24 per module)
+  - `md_frame_ids` matching each sensor `model`
+- Parameter `use_ros_time_for_sensor_time=true` sets `XTaxelSensor.time` to ROS time.
+
+## 12. Open Items
+- None at this stage.

@@ -1,0 +1,4 @@
+xela_taxel_viz_2f:
+  ros__parameters:
+    grid_rows: 4
+    grid_cols: 6

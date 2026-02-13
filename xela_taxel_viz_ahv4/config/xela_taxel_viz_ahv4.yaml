@@ -1,0 +1,56 @@
+xela_taxel_viz_ahv4:
+  ros__parameters:
+    in_topic: /x_taxel_ah
+    out_topic: /x_taxel_ah/markers
+    frame_id: x_taxel_ah_viz
+
+    mapping_yaml: ""
+    pattern_yaml: ""
+    viz_mode: grid
+    overlay_grid_in_urdf: false
+    urdf_taxel_scale: 1.0
+
+    grid_rows: 31
+    grid_cols: 26
+    cell_size: 0.01
+    origin_x: 0.0
+    origin_y: 0.0
+
+    use_forces_if_present: true
+    baseline_duration_sec: 2.0
+    use_axis_normalization: true
+    xy_range: 1350.0
+    z_range: 16000.0
+    marker_stamp_mode: keep
+    marker_time_offset_sec: -0.1
+
+    use_fz_only: false
+    use_xy_direction: true
+    max_force: 1.0
+
+    use_cell_scale: true
+    circle_area_scale: 2.0
+    circle_height: 0.002
+    circle_min_radius: 0.001
+    circle_max_radius: 0.004
+
+    arrow_length_scale: 2.0
+    arrow_min_length: 0.0
+    arrow_max_length: 0.02
+    arrow_shaft_diameter: 0.001
+    arrow_head_diameter: 0.002
+    arrow_head_length: 0.003
+
+    grid_thickness: 0.0008
+    grid_lines_enabled: true
+    grid_line_width: 0.0004
+    grid_line_alpha: 0.2
+    grid_line_color: [0.2, 0.2, 0.2]
+
+    grid_alpha: 1.0
+    circle_alpha: 0.9
+    arrow_alpha: 1.0
+
+    grid_color: [0.91, 0.89, 0.86]
+    color_low: [0.2, 0.4, 1.0]
+    color_high: [1.0, 0.2, 0.2]

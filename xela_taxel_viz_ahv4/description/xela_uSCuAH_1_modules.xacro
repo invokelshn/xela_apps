@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="uSCuAH_1modules">
+  <xacro:arg name="use_ros2_control" default="false"/>
+  <xacro:arg name="use_hand_controllers" default="false"/>
+  <xacro:property name="use_ros2_control" value="$(arg use_ros2_control)"/>
+  <xacro:property name="use_hand_controllers" value="$(arg use_hand_controllers)"/>
+	<!-- Arguments -->
+	<xacro:arg name="taxels" default="1"/>
+	<xacro:arg name="sensor_collision" default="0"/>
+	<xacro:arg name="tips" default="curved"/>
+	<xacro:arg name="sequence" default="1"/>
+	<xacro:arg name="defaultnames" default="1"/>
+	<xacro:arg name="palm" default="1"/>
+	<xacro:arg name="parent" default="world"/>
+
+	<xacro:include filename="$(find xela_ah_r2c_bringup)/urdf/allegro_hand_right_r2c.xacro" />
+	<xacro:include filename="$(find allegro_hand_bringup)/config/v4/single_hand/allegro_hand.ros2_control.xacro" />
+
+	<xacro:if value="${xacro.arg('parent') == 'world'}">
+  	<link name="world" />
+	</xacro:if>
+
+	<xacro:allegro_hand_right_r2c 
+		sequence="$(arg sequence)"
+		tips="$(arg tips)"
+		parent="$(arg parent)"
+		defaultnames="$(arg defaultnames)"
+		palm="$(arg palm)"
+		taxels="$(arg taxels)"
+		sensor_collision="$(arg sensor_collision)" />
+
+  <xacro:if value="${use_hand_controllers}">
+    <xacro:allegro_hand_ros2_control
+      name="AllegroHandV4"
+      initial_positions_file="$(find allegro_hand_v4_description)/config/initial_positions.yaml"
+      pd_gains_file="$(find allegro_hand_v4_description)/config/pd_gains.yaml"
+      io_interface_descriptor="can:can0"
+      hand_id="2"
+      prefix="ah_"
+      ros2_control_hardware_type="mock_components"/>
+  </xacro:if>
+
+
+</robot>

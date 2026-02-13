@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>xela_taxel_viz_ahv4</name>
+  <version>0.1.0</version>
+  <description>RViz2 visualization for /x_taxel_ah (31x26 pattern, 368 active cells).</description>
+  <maintainer email="dev@xela-robotics.local">Xela Robotics</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>xela_taxel_msgs</depend>
+  <depend>yaml-cpp</depend>
+
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>xela_taxel_joint_state_publisher</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>xela_models</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

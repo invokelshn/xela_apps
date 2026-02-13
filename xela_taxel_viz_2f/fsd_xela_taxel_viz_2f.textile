@@ -1,0 +1,119 @@
+h1. Functional Specification Document (FSD) - xela_taxel_viz_2f
+
+h2. 1. Overview
+
+@xela_taxel_viz_2f@ visualizes tactile data from @/x_taxel_2f@
+(@xela_taxel_msgs/XTaxelSensorTArray@) in RViz2.
+It supports two modes:
+* *Grid mode*: two 4x6 grids (left/right modules).
+* *URDF mode*: markers attached to taxel frames from URDF.
+
+h2. 2. Goals
+
+* Provide intuitive visualization of tactile force magnitude and direction.
+* Support baseline/zeroing to stabilize readings.
+* Offer runtime configuration via ROS parameters and launch arguments.
+
+h2. 3. Inputs
+
+* Topic: @/x_taxel_2f@
+** Message: @xela_taxel_msgs/XTaxelSensorTArray@
+** Fields used:
+*** @x_modules[].forces[]@ (x, y, z)
+*** @x_modules[].taxels[]@ (baseline only)
+*** @x_modules[].frame_ids[]@ (URDF mode)
+
+h2. 4. Outputs
+
+* Topic: @/x_taxel_2f/markers@
+** Message: @visualization_msgs/MarkerArray@
+** Marker types: grid tiles, circles, arrows.
+
+h2. 5. Functional Requirements
+
+h3. FR-1: Visualization modes
+
+* The node shall support @viz_mode=grid@ and @viz_mode=urdf@.
+* Grid mode shall render two 4x6 grids side-by-side.
+* URDF mode shall attach markers to per-taxel frames.
+
+h3. FR-2: Force magnitude mapping
+
+* The node shall map force magnitude to circle size and color.
+* The node shall map force direction to arrow orientation and length.
+* Z-axis negative values shall be clamped to 0 for normalization.
+
+h3. FR-3: Baseline handling
+
+* The node shall compute a per-taxel baseline for a configurable duration after start.
+* During baseline collection, the output magnitude shall be zero.
+* Baseline shall be applied to @forces@ and @taxels@.
+
+h3. FR-4: Grid mapping
+
+* Grid indexing shall be row-major (left→right, top→bottom).
+* Right module grid mapping shall be configurable via row/column flips.
+
+h3. FR-5: URDF mapping
+
+* URDF mode shall use @frame_ids[]@ order as-is (no index remap).
+* If a @frame_id@ ends with @_joint@, the node shall use the corresponding @_link@.
+* Direction signs shall be configurable per module in URDF mode.
+
+h3. FR-6: Launch behavior
+
+* URDF mode shall launch @robot_state_publisher@, @ros2_control_node@,
+  and @xela_taxel_joint_state_publisher@ via spawner.
+* Grid overlay in URDF mode shall be optional.
+
+h2. 6. Non-Functional Requirements
+
+* Must be configurable via YAML and launch arguments.
+* Must run with ROS 2 Humble.
+* Marker updates shall be stable (consistent IDs to avoid flicker).
+
+h2. 7. Configuration
+
+Key parameters (see @config/xela_taxel_viz_2f.yaml@):
+* Topics: @in_topic@, @out_topic@, @frame_id@
+* Modes: @viz_mode@, @overlay_grid_in_urdf@
+* Grid layout: @grid_rows@, @grid_cols@, @cell_size@, @module_gap@
+* Grid flips: @row_flip_right@, @col_flip_right@
+* Baseline: @baseline_duration_sec@
+* Normalization: @use_axis_normalization@, @xy_force_range@, @z_force_range@
+* Style: @circle_*@, @arrow_*@, @grid_*@, @color_*@
+* Direction signs (grid): @left_force_*@, @right_force_*@
+* Direction signs (URDF): @urdf_left_force_*@, @urdf_right_force_*@
+
+h2. 8. Dependencies
+
+* @xela_taxel_msgs@
+* @visualization_msgs@
+* @robot_state_publisher@
+* @controller_manager@ (ros2_control)
+* @xela_taxel_joint_state_publisher@
+
+h2. 9. Constraints & Assumptions
+
+* Two modules are expected (left/right).
+* Grid size is assumed to be 4x6 (24 taxels) unless configured otherwise.
+* URDF frame IDs must match @x_modules[].frame_ids[]@.
+
+h2. 10. Acceptance Criteria
+
+* Grid mode:
+** Two 4x6 grids rendered with correct left/right mapping.
+** Circle size/color and arrow direction follow force data.
+* URDF mode:
+** URDF loads and taxel frames are visible in RViz2.
+** Markers attach to correct taxel frames.
+** Direction sign corrections per module behave as configured.
+* Baseline:
+** Initial 1–2 seconds show near-zero output.
+** After baseline, changes respond to touch.
+
+h2. 11. Test/Validation Outline
+
+* Replay recorded @/x_taxel_2f@ and verify marker positions and directions.
+* Confirm baseline behavior by observing first 1–2 seconds after start.
+* Verify URDF mode launches all required nodes and TFs resolve.

@@ -1,0 +1,15 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 30
+    xela_taxel_joint_state_publisher:
+      type: xela_taxel_joint_state_publisher/XelaTaxelJointStatePublisher
+
+xela_taxel_joint_state_publisher:
+  ros__parameters:
+    config_yaml: package://xela_taxel_joint_state_publisher/config/xela_taxel_jsp_config.yaml
+    device_profiles: [uSCuAH_left]
+    device_profile: uSCuAH_left
+    hand_side: left
+    output_topic: /joint_states
+    publish_rate: 30.0
+    preserve_input_order: true

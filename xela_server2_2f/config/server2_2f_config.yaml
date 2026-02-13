@@ -1,0 +1,89 @@
+global:
+  frame_prefix: x_taxel
+
+"uSPa22,uSPa44":
+  gen_frame_list: true
+  # taxel_count: 24
+  # gen_model: uSPa46
+
+"USPA35":
+  gen_frame_list: true
+  gen_model: uSPa35
+  taxel_count: 15
+
+"XR23AHLCPP":
+  gen_frame_list: true
+  gen_model: uSCuAH
+  taxel_count: 368
+
+"uSPa46":
+  gen_frame_list: false
+  # taxel_count: 24
+  frame_ids:
+    - uSPa46_24_joint
+    - uSPa46_23_joint
+    - uSPa46_22_joint
+    - uSPa46_21_joint
+    - uSPa46_20_joint
+    - uSPa46_19_joint
+    - uSPa46_18_joint
+    - uSPa46_17_joint
+    - uSPa46_16_joint
+    - uSPa46_15_joint
+    - uSPa46_14_joint
+    - uSPa46_13_joint
+    - uSPa46_12_joint
+    - uSPa46_11_joint
+    - uSPa46_10_joint
+    - uSPa46_09_joint
+    - uSPa46_08_joint
+    - uSPa46_07_joint
+    - uSPa46_06_joint
+    - uSPa46_05_joint
+    - uSPa46_04_joint
+    - uSPa46_03_joint
+    - uSPa46_02_joint
+    - uSPa46_01_joint
+
+"uSPrDS,uspr-dsf":
+  taxel_count: 30
+  gen_frame_list: false
+
+  #      r_08 r_04 || f_04 f_08 f_12 f_16 f_20
+  # r_10 r_07 r_03 || f_03 f_07 f_11 f_15 f_19
+  # r_09 r_06 r_02 || f_02 f_06 f_10 f_14 f_18
+  #      r_05 r_01 || f_01 f_05 f_09 f_13 f_17
+  frame_ids:
+    - uSPrDS_r_08_joint
+    - uSPrDS_r_04_joint
+    - uSPrDS_f_04_joint
+    - uSPrDS_f_08_joint
+    - uSPrDS_f_12_joint
+    - uSPrDS_f_16_joint
+    - uSPrDS_f_20_joint
+     
+    - uSPrDS_r_10_joint
+    - uSPrDS_r_07_joint
+    - uSPrDS_r_03_joint
+    - uSPrDS_f_03_joint
+    - uSPrDS_f_07_joint
+    - uSPrDS_f_11_joint
+    - uSPrDS_f_15_joint
+    - uSPrDS_f_19_joint
+     
+    - uSPrDS_r_09_joint
+    - uSPrDS_r_06_joint
+    - uSPrDS_r_02_joint
+    - uSPrDS_f_02_joint
+    - uSPrDS_f_06_joint
+    - uSPrDS_f_10_joint
+    - uSPrDS_f_14_joint
+    - uSPrDS_f_18_joint
+     
+    - uSPrDS_r_05_joint
+    - uSPrDS_r_01_joint
+    - uSPrDS_f_01_joint
+    - uSPrDS_f_05_joint
+    - uSPrDS_f_09_joint
+    - uSPrDS_f_13_joint
+    - uSPrDS_f_17_joint

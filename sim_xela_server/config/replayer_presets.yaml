@@ -1,0 +1,33 @@
+sim_xela_server:
+  ros__parameters:
+    replayer_presets:
+      slow:
+        publish_period_ms: 300
+        sine_freq_hz: 0.03
+        random_zero_prob: 0.6
+        integer_z_range: 10085.0
+        calib_z_range: 14.0
+      normal:
+        publish_period_ms: 200
+        sine_freq_hz: 0.05
+        random_zero_prob: 0.4
+        integer_z_range: 10085.0
+        calib_z_range: 14.0
+      fast:
+        publish_period_ms: 100
+        sine_freq_hz: 0.1
+        random_zero_prob: 0.2
+        integer_z_range: 10085.0
+        calib_z_range: 14.0
+      H:
+        z_bias_power: 3.0
+        integer_z_range: 2000.0
+        calib_z_range: 3.0
+      M:
+        z_bias_power: 2.0
+        integer_z_range: 2000.0
+        calib_z_range: 3.0
+      L:
+        z_bias_power: 1.2
+        integer_z_range: 2000.0
+        calib_z_range: 3.0

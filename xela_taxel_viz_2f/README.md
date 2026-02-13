@@ -1,0 +1,86 @@
+# xela_taxel_viz_2f
+
+RViz2 visualization for `/x_taxel_2f` (`xela_taxel_msgs/XTaxelSensorTArray`).
+Supports a 2x module 4x6 grid mode and a URDF mode that uses taxel frames.
+
+## Build
+```
+cd ~/xela_robotics/02_dev_ws
+colcon build --packages-select xela_taxel_viz_2f
+```
+If you modify `xela_models` xacros, rebuild that package too:
+```
+colcon build --packages-select xela_models
+```
+
+## Run (Grid mode)
+```
+source ~/xela_robotics/02_dev_ws/install/setup.bash
+ros2 launch xela_taxel_viz_2f xela_taxel_viz_2f.launch.py viz_mode:=grid
+```
+
+## Run (URDF mode)
+```
+source ~/xela_robotics/02_dev_ws/install/setup.bash
+ros2 launch xela_taxel_viz_2f xela_taxel_viz_2f.launch.py viz_mode:=urdf model_name:=uSPr2F
+```
+URDF mode also launches:
+- `robot_state_publisher`
+- `ros2_control_node`
+- `xela_taxel_joint_state_publisher` (via spawner)
+
+## Launch arguments
+- `viz_mode`: `grid` or `urdf`
+- `model_name`: model name used for `description/xela_<model>_2_modules.xacro` and device profile selection
+- URDF mode uses `config/models/<model>/ros2_controllers.yaml` for ros2_control.
+- `overlay_grid_in_urdf`: show grid overlay in URDF mode (default: `false`)
+- `style_preset`: grid style preset (`default`, `cool_steel`, `deep_navy`, `warm_graphite`)
+- `params_file`: override params file
+- `urdf_xacro_path`: override xacro path for URDF mode
+
+Example:
+```
+ros2 launch xela_taxel_viz_2f xela_taxel_viz_2f.launch.py viz_mode:=urdf model_name:=uSPr2F overlay_grid_in_urdf:=true
+```
+
+## Grid style preset
+```
+ros2 launch xela_taxel_viz_2f xela_taxel_viz_2f.launch.py viz_mode:=grid model_name:=uSPrDS style_preset:=cool_steel
+```
+
+## Parameters
+See `config/base.yaml` and `config/models/<model>/<mode>.yaml` for defaults. Key groups:
+- Topics: `in_topic`, `out_topic`, `frame_id`
+- Grid layout: `grid_rows`, `grid_cols`, `cell_size`, `module_gap`, `row_flip_right`, `col_flip_right`
+- Grid map overrides: `grid_index_map_left`, `grid_index_map_right`, `grid_separator_cols_left`, `grid_separator_cols_right`
+- Baseline and scaling: `baseline_duration_sec`, `baseline_deadband_xy`, `baseline_deadband_z`, `baseline_deadband_taxel_xy`, `baseline_deadband_taxel_z`, `use_axis_normalization`, `xy_force_range`, `z_force_range`
+- Marker style: `circle_*`, `arrow_*`, `grid_*`, `color_*`
+- Marker timestamps: `marker_stamp_mode` (`keep`, `now`, `zero`)
+- Marker visibility floor: `min_marker_scale` (avoids RViz scale=0 warnings)
+- Marker timestamp offset: `marker_time_offset_sec` (negative values reduce TF extrapolation warnings)
+- Direction signs (grid): `left_force_*`, `right_force_*`
+- Direction signs (URDF): `urdf_left_force_*`, `urdf_right_force_*`
+- Model overrides: `config/models/<model>/grid.yaml` and `config/models/<model>/urdf.yaml`
+- Legacy config (archived): `config/legacy/xela_taxel_viz_2f.yaml`
+
+## RViz2
+```
+rviz2 -d ~/xela_robotics/02_dev_ws/src/xela_apps/xela_taxel_viz_2f/config/xeal_taxel_viz_2f.rviz
+```
+
+## Troubleshooting: URDF mode uses wrong joint profile
+If `/joint_states` shows the wrong model (e.g., `uSPa46` when launching `model_name:=uSPrHE35`):
+1) Confirm controller params:
+```
+ros2 param get /controller_manager xela_taxel_joint_state_publisher.ros__parameters.device_profile
+ros2 param get /controller_manager xela_taxel_joint_state_publisher.ros__parameters.config_yaml
+```
+2) Confirm the controller log shows the loaded profile and file:
+```
+Profile '<model>' loaded keep_joints file '<...>/<model>_joint.yaml'
+```
+
+## Data source behavior
+- `xela_server2_2f`: when `calibrated` is missing, `forces` is left empty and only `taxels` are populated.
+- `xela_taxel_viz_2f`: when `forces` is empty, it falls back to `taxels` for visualization.
+- Axis ranges follow the project FSD/Design documents.

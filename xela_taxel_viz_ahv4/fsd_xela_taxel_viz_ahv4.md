@@ -1,0 +1,58 @@
+# Functional Specification Document (FSD) - xela_taxel_viz_ahv4
+
+## 1. Overview
+`xela_taxel_viz_ahv4` visualizes `/x_taxel_ah` tactile data on a 31x26 grid
+with 368 active cells, and supports URDF marker mode for Allegro Hand (left/right),
+using the same visual style as `xela_taxel_viz_2f`.
+
+## 2. Inputs
+- Topic: `/x_taxel_ah`
+- Message: `xela_taxel_msgs/XTaxelSensorTArray`
+- Fields used:
+- `x_modules[].frame_ids[]` (always `_joint` suffix)
+- `x_modules[].forces[]` (optional)
+- `x_modules[].taxels[]` (primary)
+- `x_modules[].temps[]` (ignored)
+
+## 3. Outputs
+- Topic: `/x_taxel_ah/markers`
+- Message: `visualization_msgs/MarkerArray`
+
+## 4. Functional Requirements
+- FR-1: Build a flat array of 368 values per message using `frame_id -> index` mapping.
+- FR-2: Map each index to a cell using a 31x26 pattern YAML (`index_map`).
+- FR-3: Display circles and arrows per active cell.
+- FR-4: Apply baseline and normalization identical to `xela_taxel_viz_2f`.
+- FR-5: If forces are present and `use_forces_if_present=true`, use forces; else use taxels.
+
+## 5. Normalization
+- X/Y: baseline +/- 1350
+- Z: baseline to baseline + 16000 (negative clamped to 0)
+
+## 6. Configuration
+- `pattern_yaml`: path to pattern YAML
+- `mapping_yaml`: path to `taxel_joint_map_new.yaml`
+- `frame_id`: grid marker frame (default `x_taxel_ah_viz`)
+- `hand_side`: `left|right` prefix rewrite for mapping (`x_taxel_0_` vs `x_taxel_1_`)
+- `use_forces_if_present`
+- `baseline_duration_sec`
+- `xy_range`, `z_range`
+- Style parameters: circle/arrow/grid/color
+- `marker_stamp_mode`: `keep|now|zero`
+- `marker_time_offset_sec`: default `-0.1` for TF stability
+
+## 7. Constraints
+- Mapping file must cover all 368 indices.
+- Pattern YAML must be 31x26 with 368 valid indices.
+
+## 8. Acceptance Criteria
+- All 368 indices map to the correct cells.
+- Markers update in real time without errors.
+- Baseline stabilizes within configured duration.
+- Normalization matches expected ranges.
+- URDF markers align to the hand model for both left and right.
+
+## 9. Validation
+- Replay recorded `/x_taxel_ah` samples.
+- Verify a set of known indices appear at expected cells.
+- Confirm scaling response within specified ranges.

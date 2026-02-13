@@ -1,0 +1,157 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="uSPrHE35_2modules">
+  <xacro:arg name="use_ros2_control" default="false" />
+  <xacro:property name="use_ros2_control" value="$(arg use_ros2_control)" />
+
+  <xacro:include filename="$(find xela_models)/urdf/materials.xacro" />
+  <xacro:include filename="$(find xela_models)/urdf/taxel_n.xacro" />
+
+  <xacro:include filename="$(find xela_models)/urdf/uSPrHE35.xacro" />
+
+	<link name="world" />
+  
+	<joint name="fixed" type="fixed">
+		<parent link="world" />
+		<child link="x_taxel_viz" />
+	</joint>
+
+	<link name="x_taxel_viz">
+		<visual>
+			<origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.001 0.001 0.001"/>
+      </geometry>
+		</visual>
+	</link>
+
+  <xacro:uSPrHE35  	sequence="'01'" col="green" parent="x_taxel_viz" taxels="1" x="0" y="0" rz="180" />
+  <xacro:uSPrHE35  	sequence="'02'" col="red" parent="x_taxel_viz" taxels="1" x="0.125" y="0" />
+
+  <xacro:if value="${use_ros2_control}">
+    <ros2_control name="xela_taxel_fake_system" type="system">
+      <hardware>
+        <plugin>fake_components/GenericSystem</plugin>
+      </hardware>
+      <joint name="x_taxel_01_uSPrHE35_01_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_01_uSPrHE35_02_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_01_uSPrHE35_03_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_01_uSPrHE35_04_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_01_uSPrHE35_05_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_01_uSPrHE35_06_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_01_uSPrHE35_07_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_01_uSPrHE35_08_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_01_uSPrHE35_09_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_01_uSPrHE35_10_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_01_uSPrHE35_11_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_01_uSPrHE35_12_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_01_uSPrHE35_13_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_01_uSPrHE35_14_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_01_uSPrHE35_15_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_01_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_02_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_03_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_04_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_05_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_06_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_07_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_08_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_09_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_10_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_11_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_12_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_13_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_14_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+      <joint name="x_taxel_02_uSPrHE35_15_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+    </ros2_control>
+  </xacro:if>
+</robot>

@@ -1,0 +1,3 @@
+xela_server2_2f:
+  ros__parameters:
+    use_ros_time_for_sensor_time: true
