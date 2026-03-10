@@ -11,6 +11,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(xela_taxel_msgs REQUIRED)
@@ -22,6 +23,7 @@ add_executable(xela_taxel_viz_2f_node
 ament_target_dependencies(xela_taxel_viz_2f_node
   rclcpp
   std_msgs
+  std_srvs
   visualization_msgs
   geometry_msgs
   xela_taxel_msgs

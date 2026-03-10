@@ -1,0 +1,2799 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="data:," />
+  <title>Xela Taxel Sidecar</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --line: #334155;
+      --txt: #e5e7eb;
+      --muted: #93a4bf;
+      --ok: #22c55e;
+      --bad: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow-x: hidden;
+      background: radial-gradient(1200px 700px at 20% 10%, #182641 0%, var(--bg) 55%);
+      color: var(--txt);
+      font-family: "Roboto Mono", "Fira Code", "Consolas", monospace;
+    }
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      width: 100%;
+      max-width: 100%;
+      height: 100%;
+      gap: 10px;
+      padding: 12px;
+      overflow-x: clip;
+    }
+    .toolbar {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: color-mix(in oklab, var(--panel) 84%, black);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      overflow: hidden;
+    }
+    .toolbar-main {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+    .stats-row {
+      display: flex;
+      align-items: stretch;
+      width: 100%;
+    }
+    .status-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex: 1 1 260px;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--bad);
+      box-shadow: 0 0 12px color-mix(in oklab, var(--bad) 70%, transparent);
+    }
+    .dot.ok {
+      background: var(--ok);
+      box-shadow: 0 0 12px color-mix(in oklab, var(--ok) 75%, transparent);
+    }
+    button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #1f2937;
+      color: var(--txt);
+      padding: 7px 11px;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    button:hover { background: #2a3647; }
+    .mode-btn.active {
+      border-color: #0ea5e9;
+      background: #0f2f44;
+      color: #e2f2fb;
+    }
+    .mini {
+      font-size: 12px;
+      color: var(--muted);
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0b1222;
+      white-space: nowrap;
+    }
+    #modeInfo {
+      min-width: 170px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      flex: 0 0 auto;
+    }
+    #stats {
+      position: relative;
+      min-width: 0;
+      width: 100%;
+      text-align: left;
+      font-variant-numeric: tabular-nums;
+      white-space: normal;
+      flex: 1 1 auto;
+      overflow: hidden;
+    }
+    .stats-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .stats-scales {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+      margin-right: 4px;
+    }
+    .scale-btn {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+    #statsText {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #statsCurrent {
+      flex: 0 0 360px;
+      max-width: min(48%, 360px);
+      color: #cbd5e1;
+      font-size: 11px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-left: auto;
+      margin-right: 6px;
+    }
+    #followDebug {
+      flex: 0 1 520px;
+      color: #a5b4cf;
+      font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #sparkline {
+      display: block;
+      width: 100%;
+      height: 34px;
+      border-radius: 6px;
+      background: #0a1627;
+      border: 1px solid #1b2a3f;
+    }
+    .event-tooltip {
+      position: fixed;
+      pointer-events: none;
+      z-index: 60;
+      display: none;
+      max-width: min(420px, 80vw);
+      white-space: pre-line;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid #3b475d;
+      background: color-mix(in oklab, #0b1222 88%, black);
+      color: #dbeafe;
+      font-size: 11px;
+      line-height: 1.25;
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+    }
+    .contact-badge {
+      display: none;
+      align-items: center;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: 0.02em;
+      border: 1px solid transparent;
+    }
+    .contact-badge.show {
+      display: inline-flex;
+    }
+    .contact-badge.sparse {
+      color: #ffedd5;
+      border-color: #fdba74;
+      background: #7c2d12;
+    }
+    .contact-badge.broad {
+      color: #ecfeff;
+      border-color: #67e8f9;
+      background: #164e63;
+    }
+    .contact-badge.slip {
+      color: #fef2f2;
+      border-color: #fca5a5;
+      background: #7f1d1d;
+    }
+    #topicInfo {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1 1 420px;
+    }
+    @media (max-width: 1280px) {
+      #statsCurrent {
+        flex-basis: 260px;
+        max-width: min(45%, 260px);
+      }
+    }
+    .viz {
+      position: relative;
+      min-height: 220px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: linear-gradient(180deg, #0d1729 0%, #0b1221 100%);
+      overflow: hidden;
+    }
+    .urdf3d-layer {
+      position: absolute;
+      inset: 0;
+      display: none;
+      z-index: 1;
+      background: #0a1222;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .legend {
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      width: 180px;
+      background: color-mix(in oklab, #0b1222 75%, black);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+      backdrop-filter: blur(2px);
+      z-index: 3;
+      pointer-events: none;
+    }
+    .legend h4 {
+      margin: 0 0 6px 0;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .scale {
+      width: 100%;
+      height: 8px;
+      border-radius: 5px;
+      background: linear-gradient(90deg, #3b82f6 0%, #f97316 55%, #ef4444 100%);
+      border: 1px solid color-mix(in oklab, var(--line) 65%, transparent);
+    }
+    .scale-label {
+      margin-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .hint {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      color: var(--muted);
+      font-size: 11px;
+      background: color-mix(in oklab, #0b1222 75%, black);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 7px 9px;
+      max-width: 62%;
+      z-index: 3;
+      pointer-events: none;
+    }
+  </style>
+</head>
+  <body>
+  <div class="app">
+    <div class="toolbar">
+      <div class="toolbar-main">
+        <div class="status-wrap">
+          <div class="status" id="statusLine">
+            <span class="dot" id="statusDot"></span>
+            <span id="statusText">Disconnected</span>
+          </div>
+          <button id="reconnectBtn">Reconnect</button>
+        </div>
+        <div class="mini" id="modeInfo">Sidecar: Grid 2D</div>
+        <button class="mode-btn" id="gridBtn">GridMode</button>
+        <button class="mode-btn" id="xelaBtn">XelaModel</button>
+        <button class="mode-btn" id="robotBtn">RobotModel</button>
+        <button class="mode-btn" id="followBtn">FollowCam</button>
+        <button class="mode-btn active" id="analysisBtn">Analysis</button>
+        <div class="mini" id="topicInfo"></div>
+      </div>
+      <div class="stats-row" id="statsRow">
+        <div class="mini" id="stats">
+          <div class="stats-top">
+            <div class="stats-scales">
+              <button class="mode-btn scale-btn" id="win10Btn">10s</button>
+              <button class="mode-btn scale-btn active" id="win30Btn">30s</button>
+              <button class="mode-btn scale-btn" id="win60Btn">60s</button>
+              <button class="mode-btn scale-btn" id="pauseBtn">Pause</button>
+            </div>
+            <span id="statsText">No data</span>
+            <span id="statsCurrent"></span>
+            <span id="contactBadge" class="contact-badge"></span>
+            <span id="followDebug"></span>
+          </div>
+          <canvas id="sparkline" width="500" height="34"></canvas>
+          <div id="eventTooltip" class="event-tooltip"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="viz">
+      <div id="urdf3dLayer" class="urdf3d-layer"></div>
+      <canvas id="canvas"></canvas>
+      <div class="legend">
+        <h4 id="legendTitle">Intensity + XY Direction</h4>
+        <div class="scale"></div>
+        <div class="scale-label"><span>0</span><span>1</span></div>
+      </div>
+      <div class="hint" id="hintText"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { drawGridMode } from "./js/render/grid.js";
+    import { createUrdfMeshRenderer } from "./js/render/urdf_mesh_renderer.js";
+    import { forceColor as forceColorCore, forceColorRgb, drawArrowCanvas } from "./js/render/primitives.js";
+    import { createAppState } from "./js/core/app_state.js";
+    import { createRosbridgeClient } from "./js/core/rosbridge_client.js";
+    import { buildRuntimeConfig } from "./js/core/runtime_config.js";
+    import { createUiFeedback } from "./js/core/ui_feedback.js";
+    import { updateSmoothedVectors as updateSmoothedVectorsCore } from "./js/core/vector_smoothing.js";
+
+    (() => {
+      const runtimeConfig = buildRuntimeConfig(window);
+      const {
+        wsCandidates,
+        topic,
+        topicNs,
+        xelaRobotDescriptionTopic,
+        xelaTfTopic,
+        xelaTfStaticTopic,
+        xelaRobotDescriptionService,
+        robotRobotDescriptionTopic,
+        robotTfTopic,
+        robotTfStaticTopic,
+        robotRobotDescriptionService,
+        robotModelFixedFrame,
+        defaultFixedFrame,
+        followCamForwardDistance,
+        followCamHeightOffset,
+        followCamLookAhead,
+        followCamForwardSign,
+      } = runtimeConfig;
+
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const urdf3dLayer = document.getElementById("urdf3dLayer");
+      const statusDot = document.getElementById("statusDot");
+      const statusText = document.getElementById("statusText");
+      const statusLine = document.getElementById("statusLine");
+      const modeInfo = document.getElementById("modeInfo");
+      const gridBtn = document.getElementById("gridBtn");
+      const xelaBtn = document.getElementById("xelaBtn");
+      const robotBtn = document.getElementById("robotBtn");
+      const followBtn = document.getElementById("followBtn");
+      const analysisBtn = document.getElementById("analysisBtn");
+      const win10Btn = document.getElementById("win10Btn");
+      const win30Btn = document.getElementById("win30Btn");
+      const win60Btn = document.getElementById("win60Btn");
+      const pauseBtn = document.getElementById("pauseBtn");
+      const statsRow = document.getElementById("statsRow");
+      const statsText = document.getElementById("statsText");
+      const statsCurrent = document.getElementById("statsCurrent");
+      const sparkline = document.getElementById("sparkline");
+      const sparkCtx = sparkline?.getContext("2d");
+      const eventTooltip = document.getElementById("eventTooltip");
+      const contactBadge = document.getElementById("contactBadge");
+      const followDebug = document.getElementById("followDebug");
+      const topicInfo = document.getElementById("topicInfo");
+      const hintText = document.getElementById("hintText");
+      const reconnectBtn = document.getElementById("reconnectBtn");
+
+      topicInfo.textContent = `${topic} | xela:${xelaTfTopic} robot:${robotTfTopic} via ${wsCandidates.join(" | ")}`;
+
+      const state = createAppState(runtimeConfig);
+      state.gridVectorMode = "xy";
+      state.urdf3dVisible = false;
+      state.urdfRenderFailSinceMs = 0;
+      const timelineState = {
+        samplePeriodMs: 100,
+        windowMs: 30000,
+        lastSampleMs: 0,
+        lastEventStamp: NaN,
+        paused: false,
+        pausedNowMs: 0,
+        points: [],
+        events: [],
+      };
+      const hoverState = {
+        inside: false,
+        x: 0,
+        y: 0,
+        clientX: 0,
+        clientY: 0,
+      };
+      const analysisState = {
+        visible: true,
+      };
+      const followCamState = {
+        enabled: false,
+        manualOrbitActive: false,
+        captureViewOnNextUpdate: false,
+        // Anchor priority chain: grasp frame -> gripper base -> tool flange -> robot base.
+        anchorFrames: ["grasp_link", "robotiq_base_link", "tool0", "base_link"],
+        graspAnchorFrame: "grasp_link",
+        lockToGraspLink: false,
+        // Prefer always-present Robotiq links, keep optional pad/taxel frames as fallbacks.
+        leftTipFrames: ["left_inner_finger", "left_outer_finger", "left_inner_finger_pad", "x_base_01_uSPr2F_link"],
+        rightTipFrames: ["right_inner_finger", "right_outer_finger", "right_inner_finger_pad", "x_base_02_uSPr2F_link"],
+        // Keep camera above target in world Z and slightly in local front direction.
+        forwardSign: followCamForwardSign,
+        forwardDistance: followCamForwardDistance,
+        heightOffset: followCamHeightOffset,
+        lookAhead: followCamLookAhead,
+        lookUp: 0.0,
+        // High-speed follow profile: prioritize tracking responsiveness over smoothing.
+        positionLerp: 0.28,
+        targetLerp: 0.30,
+        anchorLerp: 0.34,
+        targetBaseLerp: 0.36,
+        forwardLerp: 0.22,
+        maxCamStep: 0.040,
+        maxTargetStep: 0.032,
+        tipFallbackDistance: 0.070,
+        lockHoldFrames: 40,
+        minPosDeadband: 0.0001,
+        minForwardDeg: 0.8,
+        jumpRejectDist: 0.18,
+        jumpRejectLimit: 1,
+        jumpRejectCount: 0,
+        activeAnchorFrame: "",
+        anchorMissingFrames: 0,
+        filteredAnchorPos: null,
+        filteredTargetBase: null,
+        filteredForward: null,
+        lastCameraGoal: null,
+        lastTargetGoal: null,
+        userCameraOffsetLocal: null,
+        userTargetOffsetLocal: null,
+        snapOnEnable: false,
+        debugText: "",
+        debugLastUpdateMs: 0.0,
+        debugUpdatePeriodMs: 120.0,
+      };
+      const urdfFailGraceMs = 1500.0;
+      const contactBadgeState = {
+        label: "",
+        kind: "",
+        expiresAtMs: 0,
+      };
+      let lastStatsCurrentText = "";
+      const uiFeedback = createUiFeedback({
+        state,
+        statusTextEl: statusText,
+        statusDotEl: statusDot,
+        hintTextEl: hintText,
+        modeInfoEl: modeInfo,
+      });
+      setTimelineWindowMs(30000);
+      setTimelinePaused(false, performance.now());
+      setAnalysisVisible(true);
+
+      function safeErrorText(reason) {
+        if (!reason) return "unknown";
+        if (typeof reason === "string") return reason;
+        if (reason && typeof reason.message === "string" && reason.message.length > 0) {
+          return reason.message;
+        }
+        try {
+          return JSON.stringify(reason);
+        } catch (_) {
+          return String(reason);
+        }
+      }
+
+      function clamp(v, lo, hi) {
+        return Math.max(lo, Math.min(hi, v));
+      }
+
+      function formatVec3(vec) {
+        if (!vec) return "[-,-,-]";
+        return `[${vec.x.toFixed(3)},${vec.y.toFixed(3)},${vec.z.toFixed(3)}]`;
+      }
+
+      function updateFollowDebugUi() {
+        if (!followDebug) return;
+        if (state.uiMode === "robot" && followCamState.enabled && followCamState.debugText) {
+          followDebug.textContent = followCamState.debugText;
+          followDebug.title = followCamState.debugText;
+          return;
+        }
+        followDebug.textContent = "";
+        followDebug.title = "";
+      }
+
+      function setFollowDebugText(text) {
+        const next = String(text || "");
+        if (followCamState.debugText === next) {
+          return;
+        }
+        followCamState.debugText = next;
+        updateFollowDebugUi();
+      }
+
+      function setFollowDebugTextThrottled(nowMs, text) {
+        if ((nowMs - followCamState.debugLastUpdateMs) < followCamState.debugUpdatePeriodMs) {
+          return;
+        }
+        followCamState.debugLastUpdateMs = nowMs;
+        setFollowDebugText(text);
+      }
+
+      function resolveGraspTelemetry(payload) {
+        const grasp = payload?.meta?.grasp;
+        if (grasp && typeof grasp === "object") return grasp;
+        const eventTelemetry = payload?.meta?.grasp_event?.telemetry;
+        if (eventTelemetry && typeof eventTelemetry === "object") return eventTelemetry;
+        return null;
+      }
+
+      function resolveTelemetryPhase(grasp, graspEvent) {
+        if (typeof grasp?.phase === "string" && grasp.phase.length > 0) {
+          return grasp.phase;
+        }
+        if (typeof graspEvent?.phase === "string" && graspEvent.phase.length > 0) {
+          return graspEvent.phase;
+        }
+        if (typeof graspEvent?.telemetry?.phase === "string" && graspEvent.telemetry.phase.length > 0) {
+          return graspEvent.telemetry.phase;
+        }
+        return "";
+      }
+
+      function syncSparkCanvasSize() {
+        if (!sparkline) return;
+        const w = Math.max(140, Math.round(sparkline.clientWidth || 0));
+        const h = Math.max(24, Math.round(sparkline.clientHeight || 0));
+        if (sparkline.width !== w || sparkline.height !== h) {
+          sparkline.width = w;
+          sparkline.height = h;
+        }
+      }
+
+      function setAnalysisVisible(visible) {
+        analysisState.visible = Boolean(visible);
+        if (statsRow) {
+          statsRow.style.display = analysisState.visible ? "" : "none";
+        }
+        analysisBtn.classList.toggle("active", analysisState.visible);
+        if (!analysisState.visible) {
+          setEventTooltipVisible(false);
+        }
+      }
+
+      function setEventTooltipVisible(visible) {
+        if (!eventTooltip) return;
+        eventTooltip.style.display = visible ? "block" : "none";
+        eventTooltip.style.visibility = visible ? "visible" : "hidden";
+      }
+
+      function getEventMarkerScreenX(nowMs, eventTimeMs) {
+        const w = sparkline.width;
+        const padX = 3.0;
+        const innerW = Math.max(1, w - padX * 2);
+        const ageMs = nowMs - eventTimeMs;
+        if (ageMs < 0.0 || ageMs > timelineState.windowMs) {
+          return NaN;
+        }
+        return padX + (1.0 - ageMs / timelineState.windowMs) * innerW;
+      }
+
+      function findNearestEventForHover(nowMs, mouseX) {
+        if (!timelineState.events.length) return null;
+        let nearest = null;
+        let bestDist = Number.POSITIVE_INFINITY;
+        for (const evt of timelineState.events) {
+          const x = getEventMarkerScreenX(nowMs, evt.t);
+          if (!Number.isFinite(x)) continue;
+          const d = Math.abs(mouseX - x);
+          if (d < bestDist) {
+            bestDist = d;
+            nearest = { ...evt, x };
+          }
+        }
+        if (!nearest || bestDist > 12.0) return null;
+        return nearest;
+      }
+
+      function updateEventTooltip(nowMs) {
+        if (!eventTooltip || !sparkline || !hoverState.inside || !analysisState.visible) {
+          setEventTooltipVisible(false);
+          return;
+        }
+        const evt = findNearestEventForHover(nowMs, hoverState.x);
+        if (!evt) {
+          setEventTooltipVisible(false);
+          return;
+        }
+
+        const ageSec = Math.max(0.0, (nowMs - evt.t) / 1000.0);
+        const lines = [];
+        lines.push(`${evt.label} (${evt.eventName || "event"})`);
+        if (evt.phase) lines.push(`phase: ${evt.phase}`);
+        if (evt.source) lines.push(`source: ${evt.source}`);
+        if (evt.mode) lines.push(`mode: ${evt.mode}`);
+        if (evt.reason) lines.push(`reason: ${evt.reason}`);
+        if (Number.isFinite(evt.slipClosePos)) lines.push(`close_pos: ${evt.slipClosePos.toFixed(3)}`);
+        if (Number.isFinite(evt.slipTargetEffort)) lines.push(`target_effort: ${evt.slipTargetEffort.toFixed(1)}`);
+        if (evt.note) lines.push(`note: ${evt.note}`);
+        lines.push(`age: ${ageSec.toFixed(2)}s`);
+        eventTooltip.textContent = lines.join("\n");
+        const sparkRect = sparkline.getBoundingClientRect();
+        const viewportX = sparkRect.left + evt.x;
+        const viewportY = hoverState.clientY || (sparkRect.top + hoverState.y);
+        eventTooltip.style.display = "block";
+        eventTooltip.style.visibility = "hidden";
+        eventTooltip.style.left = "0px";
+        eventTooltip.style.top = "0px";
+        const tooltipRect = eventTooltip.getBoundingClientRect();
+        const tooltipWidth = tooltipRect.width || 220.0;
+        const tooltipHeight = tooltipRect.height || 80.0;
+        const margin = 10.0;
+        let left = viewportX + 12.0;
+        let top = viewportY - tooltipHeight - 10.0;
+        if ((left + tooltipWidth + margin) > window.innerWidth) {
+          left = viewportX - tooltipWidth - 12.0;
+        }
+        if (left < margin) {
+          left = margin;
+        }
+        if (top < margin) {
+          top = viewportY + 14.0;
+        }
+        if ((top + tooltipHeight + margin) > window.innerHeight) {
+          top = Math.max(margin, window.innerHeight - tooltipHeight - margin);
+        }
+        eventTooltip.style.left = `${left}px`;
+        eventTooltip.style.top = `${top}px`;
+        eventTooltip.style.visibility = "visible";
+        eventTooltip.style.display = "block";
+      }
+
+      function setTimelineWindowMs(ms) {
+        timelineState.windowMs = Math.max(5000, Number(ms) || 30000);
+        win10Btn.classList.toggle("active", timelineState.windowMs === 10000);
+        win30Btn.classList.toggle("active", timelineState.windowMs === 30000);
+        win60Btn.classList.toggle("active", timelineState.windowMs === 60000);
+      }
+
+      function getTimelineNowMs(nowMs) {
+        return timelineState.paused ? timelineState.pausedNowMs : nowMs;
+      }
+
+      function setTimelinePaused(paused, nowMs = performance.now()) {
+        timelineState.paused = Boolean(paused);
+        if (timelineState.paused) {
+          timelineState.pausedNowMs = nowMs;
+        } else {
+          timelineState.lastSampleMs = nowMs;
+        }
+        pauseBtn?.classList.toggle("active", timelineState.paused);
+        pauseBtn.textContent = timelineState.paused ? "Resume" : "Pause";
+      }
+
+      function computeGridFzCurrent(payload) {
+        const points = payload?.grid?.points;
+        if (!Array.isArray(points) || points.length === 0) {
+          return { left: NaN, right: NaN, total: NaN };
+        }
+
+        let left = 0.0;
+        let right = 0.0;
+        let hasAny = false;
+        for (const p of points) {
+          const v = Number(p?.fz);
+          if (!Number.isFinite(v)) continue;
+          hasAny = true;
+          const module = String(p?.module || "").toLowerCase();
+          if (module.includes("left")) {
+            left += v;
+          } else if (module.includes("right")) {
+            right += v;
+          } else {
+            right += v;
+          }
+        }
+        if (!hasAny) {
+          return { left: NaN, right: NaN, total: NaN };
+        }
+        return { left, right, total: left + right };
+      }
+
+      function pruneTimeline(nowMs) {
+        const cutoff = nowMs - timelineState.windowMs;
+        timelineState.points = timelineState.points.filter((p) => Number.isFinite(p.t) && p.t >= cutoff);
+        timelineState.events = timelineState.events.filter((e) => Number.isFinite(e.t) && e.t >= cutoff);
+      }
+
+      function sampleTimeline(grasp, nowMs) {
+        if (!grasp || !sparkCtx) return;
+        if (timelineState.paused) return;
+        if ((nowMs - timelineState.lastSampleMs) < timelineState.samplePeriodMs) return;
+        timelineState.points.push({
+          t: nowMs,
+          fz: Number(grasp?.force?.fz),
+          sigma: Number(grasp?.point?.sigma),
+        });
+        timelineState.lastSampleMs = nowMs;
+      }
+
+      function classifyEventMarker(grasp, graspEvent) {
+        const eventName = typeof graspEvent?.event === "string" ? graspEvent.event : "";
+        if (!eventName) return null;
+        if (eventName === "slip_warning") {
+          return {
+            label: "SLIP_WARNING",
+            kind: "slip",
+          };
+        }
+        if (eventName === "contact_detected") {
+          const sparseFlag = Boolean(graspEvent?.telemetry?.flags?.point_sparse ?? grasp?.flags?.point_sparse);
+          return {
+            label: sparseFlag ? "SPARSE_CONTACT" : "BROAD_CONTACT",
+            kind: sparseFlag ? "sparse" : "broad",
+          };
+        }
+        return {
+          label: String(eventName).toUpperCase(),
+          kind: "event",
+        };
+      }
+
+      function registerEvent(grasp, graspEvent, nowMs, eventAgeMs) {
+        if (timelineState.paused) {
+          return null;
+        }
+        const rawStamp = Number(graspEvent?.stamp);
+        if (!Number.isFinite(rawStamp) || rawStamp === timelineState.lastEventStamp) {
+          return null;
+        }
+        timelineState.lastEventStamp = rawStamp;
+        const marker = classifyEventMarker(grasp, graspEvent);
+        if (!marker) return null;
+
+        const age = Number(eventAgeMs);
+        const eventTime = Number.isFinite(age) && age >= 0.0 ? (nowMs - age) : nowMs;
+        const eventName = typeof graspEvent?.event === "string" ? graspEvent.event : "";
+        const phase = typeof graspEvent?.phase === "string"
+          ? graspEvent.phase
+          : (typeof graspEvent?.telemetry?.phase === "string" ? graspEvent.telemetry.phase : "");
+        const note = typeof graspEvent?.note === "string" ? graspEvent.note : "";
+        const source = typeof graspEvent?.source === "string" ? graspEvent.source : "";
+        const mode = typeof graspEvent?.mode === "string" ? graspEvent.mode : "";
+        const reason = typeof graspEvent?.reason === "string" ? graspEvent.reason : "";
+        const slipClosePos = Number(graspEvent?.slip?.close_pos);
+        const slipTargetEffort = Number(graspEvent?.slip?.target_effort);
+        timelineState.events.push({
+          t: eventTime,
+          label: marker.label,
+          kind: marker.kind,
+          eventName,
+          phase,
+          note,
+          source,
+          mode,
+          reason,
+          slipClosePos,
+          slipTargetEffort,
+        });
+        return marker;
+      }
+
+      function getSeriesRange(values) {
+        const finite = values.filter((v) => Number.isFinite(v));
+        if (finite.length === 0) {
+          return null;
+        }
+        const min = Math.min(...finite);
+        const max = Math.max(...finite);
+        if (Math.abs(max - min) < 1e-9) {
+          const base = Math.max(1e-6, Math.abs(max) * 0.2);
+          return { min: min - base, max: max + base };
+        }
+        return { min, max };
+      }
+
+      function drawTimelineSeries(nowMs, key, color) {
+        if (!sparkCtx || timelineState.points.length === 0) return false;
+        const values = timelineState.points.map((p) => Number(p[key]));
+        const rangeInfo = getSeriesRange(values);
+        if (!rangeInfo) return false;
+
+        const w = sparkline.width;
+        const h = sparkline.height;
+        const padX = 3.0;
+        const padY = 4.0;
+        const innerW = Math.max(1, w - padX * 2);
+        const innerH = Math.max(1, h - padY * 2);
+        const range = Math.max(1e-9, rangeInfo.max - rangeInfo.min);
+
+        sparkCtx.strokeStyle = color;
+        sparkCtx.lineWidth = 1.5;
+        sparkCtx.beginPath();
+        let penDown = false;
+        let finiteCount = 0;
+        for (const p of timelineState.points) {
+          const raw = Number(p[key]);
+          if (!Number.isFinite(raw)) {
+            penDown = false;
+            continue;
+          }
+          const ageMs = nowMs - p.t;
+          if (ageMs < 0.0 || ageMs > timelineState.windowMs) {
+            continue;
+          }
+          finiteCount += 1;
+          const x = padX + (1.0 - ageMs / timelineState.windowMs) * innerW;
+          const y = padY + (1.0 - (raw - rangeInfo.min) / range) * innerH;
+          if (!penDown) {
+            sparkCtx.moveTo(x, y);
+            penDown = true;
+          } else {
+            sparkCtx.lineTo(x, y);
+          }
+        }
+        sparkCtx.stroke();
+
+        if (finiteCount === 1) {
+          const last = timelineState.points[timelineState.points.length - 1];
+          const raw = Number(last?.[key]);
+          const ageMs = nowMs - Number(last?.t);
+          const x = padX + (1.0 - clamp(ageMs / timelineState.windowMs, 0.0, 1.0)) * innerW;
+          const y = padY + (1.0 - (raw - rangeInfo.min) / range) * innerH;
+          sparkCtx.fillStyle = color;
+          sparkCtx.beginPath();
+          sparkCtx.arc(x, y, 1.8, 0, Math.PI * 2.0);
+          sparkCtx.fill();
+        }
+        return true;
+      }
+
+      function drawEventMarkers(nowMs) {
+        if (!sparkCtx || timelineState.events.length === 0) return;
+        const w = sparkline.width;
+        const h = sparkline.height;
+        const padX = 3.0;
+        const innerW = Math.max(1, w - padX * 2);
+        for (const evt of timelineState.events) {
+          const ageMs = nowMs - evt.t;
+          if (ageMs < 0.0 || ageMs > timelineState.windowMs) {
+            continue;
+          }
+          const x = padX + (1.0 - ageMs / timelineState.windowMs) * innerW;
+          const color = evt.kind === "sparse"
+            ? "#fb923c"
+            : (evt.kind === "broad" ? "#22d3ee" : (evt.kind === "slip" ? "#ef4444" : "#cbd5e1"));
+          sparkCtx.strokeStyle = color;
+          sparkCtx.lineWidth = evt.kind === "slip" ? 1.4 : 1.0;
+          sparkCtx.beginPath();
+          sparkCtx.moveTo(x, 12.0);
+          sparkCtx.lineTo(x, h - 2.0);
+          sparkCtx.stroke();
+
+          const tag = evt.kind === "sparse" ? "S" : (evt.kind === "broad" ? "B" : (evt.kind === "slip" ? "W" : "E"));
+          sparkCtx.fillStyle = color;
+          sparkCtx.fillRect(x + 1.0, 12.0, 8.0, 8.0);
+          sparkCtx.fillStyle = "#0b1222";
+          sparkCtx.font = "8px ui-monospace, SFMono-Regular, Menlo, monospace";
+          sparkCtx.fillText(tag, x + 3.0, 18.0);
+        }
+      }
+
+      function drawSparkline(nowMs) {
+        if (!sparkCtx) return;
+        syncSparkCanvasSize();
+        sparkCtx.clearRect(0, 0, sparkline.width, sparkline.height);
+        sparkCtx.fillStyle = "#0a1627";
+        sparkCtx.fillRect(0, 0, sparkline.width, sparkline.height);
+        sparkCtx.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
+        sparkCtx.fillStyle = "#f59e0b";
+        sparkCtx.fillText("sigma", 5, 10);
+        sparkCtx.fillStyle = "#22d3ee";
+        sparkCtx.fillText("fz", 46, 10);
+        sparkCtx.fillStyle = "#94a3b8";
+        sparkCtx.fillText(
+          `tw=${Math.round(timelineState.windowMs / 1000)}s${timelineState.paused ? " paused" : ""}`,
+          Math.max(86, sparkline.width - 84),
+          10,
+        );
+
+        pruneTimeline(nowMs);
+        const hasSigma = timelineState.points.some((p) => Number.isFinite(p.sigma));
+        const hasFz = timelineState.points.some((p) => Number.isFinite(p.fz));
+        if (!hasSigma && !hasFz) {
+          drawEventMarkers(nowMs);
+          sparkCtx.fillStyle = "#64748b";
+          sparkCtx.fillText("no telemetry", Math.max(72, sparkline.width - 92), 10);
+          updateEventTooltip(nowMs);
+          return;
+        }
+        drawTimelineSeries(nowMs, "sigma", "#f59e0b");
+        drawTimelineSeries(nowMs, "fz", "#22d3ee");
+        drawEventMarkers(nowMs);
+        updateEventTooltip(nowMs);
+      }
+
+      function updateContactBadge(newMarker, nowMs) {
+        if (!contactBadge) return;
+
+        if (newMarker && (newMarker.kind === "sparse" || newMarker.kind === "broad" || newMarker.kind === "slip")) {
+          contactBadgeState.kind = newMarker.kind;
+          contactBadgeState.label = newMarker.label;
+          contactBadgeState.expiresAtMs = nowMs + (newMarker.kind === "slip" ? 3000.0 : 2200.0);
+        }
+
+        if (nowMs < contactBadgeState.expiresAtMs) {
+          contactBadge.textContent = contactBadgeState.label;
+          contactBadge.className = `contact-badge show ${contactBadgeState.kind}`;
+        } else {
+          contactBadge.textContent = "";
+          contactBadge.className = "contact-badge";
+        }
+      }
+
+      function normalizeFrameId(frameId) {
+        if (!frameId) return "";
+        return String(frameId).replace(/^\/+/, "").trim();
+      }
+
+      function getUrdfSourceForUiMode() {
+        return state.uiMode === "robot" ? "robot" : "xela";
+      }
+
+      function getActiveUrdfSource() {
+        return state.urdfSources[getUrdfSourceForUiMode()];
+      }
+
+      function bindActiveUrdfSourceToMesh(force = false) {
+        const src = getActiveUrdfSource();
+        const m = state.urdfMesh;
+        const sourceChanged = m.boundSourceName !== src.name;
+        const descChanged = m.boundRobotDescriptionVersion !== src.robotDescriptionVersion;
+        if (force || sourceChanged || descChanged) {
+          m.boundSourceName = src.name;
+          m.boundRobotDescriptionVersion = src.robotDescriptionVersion;
+          m.robotDescriptionXml = src.robotDescriptionXml;
+          m.robotBuilt = false;
+          m.failReason = "";
+          m.autoFrameDone = false;
+          m.markerMap.clear();
+          m.markerGroup?.clear?.();
+          m.linkGroups.clear();
+          m.robotGroup?.clear?.();
+        }
+        m.tfEdges = src.tfEdges;
+        m.frameAliasCache = src.frameAliasCache;
+      }
+
+      function getFrameLeafName(frame) {
+        const text = normalizeFrameId(frame);
+        if (!text) return "";
+        const parts = text.split(/[/:]/).filter(Boolean);
+        return parts.length ? parts[parts.length - 1] : text;
+      }
+
+      function resolveChildFrameAlias(frame) {
+        const m = state.urdfMesh;
+        const clean = normalizeFrameId(frame);
+        if (!clean) return "";
+        if (m.tfEdges.has(clean)) {
+          return clean;
+        }
+        if (m.frameAliasCache.has(clean)) {
+          return m.frameAliasCache.get(clean);
+        }
+        const leaf = getFrameLeafName(clean);
+        let match = "";
+        for (const key of m.tfEdges.keys()) {
+          const keyLeaf = getFrameLeafName(key);
+          if (keyLeaf !== leaf) continue;
+          if (!match) {
+            match = key;
+          } else if (match !== key) {
+            m.frameAliasCache.set(clean, "");
+            return "";
+          }
+        }
+        m.frameAliasCache.set(clean, match || "");
+        return match || "";
+      }
+
+      function selectFixedFrame(activeSource, payloadFixedFrame) {
+        const m = state.urdfMesh;
+        const payloadFixed = normalizeFrameId(payloadFixedFrame || "");
+        const childSet = new Set(m.tfEdges.keys());
+        const parentSet = new Set();
+        const childrenByParent = new Map();
+        for (const [child, edge] of m.tfEdges.entries()) {
+          const parent = normalizeFrameId(edge.parent);
+          if (!parent) continue;
+          parentSet.add(parent);
+          if (!childrenByParent.has(parent)) {
+            childrenByParent.set(parent, []);
+          }
+          childrenByParent.get(parent).push(normalizeFrameId(child));
+        }
+        const frameExists = (name) => {
+          if (!name) return false;
+          return childSet.has(name) || parentSet.has(name);
+        };
+
+        const preferred = [];
+        if (state.uiMode === "robot") {
+          const rootLink = normalizeFrameId(activeSource?.robotRootLink || "");
+          if (rootLink) {
+            const aliasedRoot = resolveChildFrameAlias(rootLink) || rootLink;
+            preferred.push(aliasedRoot);
+          }
+          if (robotModelFixedFrame) preferred.push(robotModelFixedFrame);
+          if (payloadFixed) preferred.push(payloadFixed);
+          preferred.push("world", "base_link");
+        } else {
+          if (payloadFixed) preferred.push(payloadFixed);
+          preferred.push(defaultFixedFrame);
+        }
+        for (const name of preferred) {
+          const clean = normalizeFrameId(name);
+          if (frameExists(clean)) return clean;
+        }
+
+        const roots = [];
+        for (const p of parentSet) {
+          if (!childSet.has(p)) roots.push(p);
+        }
+        if (roots.length > 0) {
+          const memo = new Map();
+          const visit = new Set();
+          const scoreRoot = (root) => {
+            if (memo.has(root)) return memo.get(root);
+            if (visit.has(root)) return 0;
+            visit.add(root);
+            let total = 1;
+            const children = childrenByParent.get(root) || [];
+            for (const child of children) {
+              if (child) total += scoreRoot(child);
+            }
+            visit.delete(root);
+            memo.set(root, total);
+            return total;
+          };
+          roots.sort((a, b) => scoreRoot(b) - scoreRoot(a) || a.localeCompare(b));
+          return roots[0];
+        }
+
+        if (childSet.size > 0) {
+          return Array.from(childSet).sort()[0];
+        }
+        return payloadFixed || normalizeFrameId(defaultFixedFrame || "world") || "world";
+      }
+
+      function onFollowOrbitInteraction(interactionType) {
+        if (!followCamState.enabled || state.uiMode !== "robot") {
+          return;
+        }
+        if (interactionType === "start" || interactionType === "pointerdown") {
+          followCamState.manualOrbitActive = true;
+          followCamState.captureViewOnNextUpdate = true;
+          return;
+        }
+        if (interactionType === "end") {
+          followCamState.manualOrbitActive = false;
+          followCamState.captureViewOnNextUpdate = true;
+          return;
+        }
+        if (interactionType === "wheel") {
+          followCamState.captureViewOnNextUpdate = true;
+        }
+      }
+
+      function setFollowCamEnabled(enabled) {
+        const next = Boolean(enabled);
+        if (followCamState.enabled === next) {
+          return;
+        }
+        followCamState.enabled = next;
+        followCamState.manualOrbitActive = false;
+        followCamState.captureViewOnNextUpdate = false;
+        followCamState.lockToGraspLink = false;
+        followCamState.activeAnchorFrame = "";
+        followCamState.anchorMissingFrames = 0;
+        followCamState.jumpRejectCount = 0;
+        followCamState.filteredAnchorPos = null;
+        followCamState.filteredTargetBase = null;
+        followCamState.filteredForward = null;
+        followCamState.lastCameraGoal = null;
+        followCamState.lastTargetGoal = null;
+        followCamState.userCameraOffsetLocal = null;
+        followCamState.userTargetOffsetLocal = null;
+        followCamState.snapOnEnable = next;
+        followCamState.debugLastUpdateMs = 0.0;
+        if (next) {
+          setHintText("FollowCam enabled: manual orbit updates the follow view immediately.");
+          setFollowDebugText("fc waiting: resolving anchor/tip frames...");
+        } else {
+          setHintText("FollowCam disabled: RobotModel fixed orbit mode.");
+          setFollowDebugText("");
+          // Restore RobotModel default framing when follow is turned off.
+          if (state.uiMode === "robot") {
+            const m = state.urdfMesh;
+            if (m.ready) {
+              m.autoFrameDone = false;
+              autoFrameUrdfMeshCamera(true);
+            }
+          }
+        }
+        applyOrbitProfileForMode();
+        updateModeButtons();
+      }
+
+      function resolveFrameTfCandidate(frameName, fixedFrame, strictCache, strictVisiting) {
+        const clean = normalizeFrameId(frameName || "");
+        if (!clean) {
+          return null;
+        }
+        const resolved = resolveChildFrameAlias(clean) || clean;
+        let tf = resolveFrameToFixed(resolved, fixedFrame, strictCache, strictVisiting, false);
+        if (!tf) {
+          return null;
+        }
+        return { frame: resolved, tf };
+      }
+
+      function resolveFirstAvailableFrameTf(frameNames, fixedFrame, strictCache, strictVisiting) {
+        if (!Array.isArray(frameNames) || frameNames.length === 0) {
+          return null;
+        }
+        for (const name of frameNames) {
+          const tf = resolveFrameTfCandidate(name, fixedFrame, strictCache, strictVisiting);
+          if (tf) {
+            return tf;
+          }
+        }
+        return null;
+      }
+
+      function updateFollowCamera(nowMs) {
+        if (!followCamState.enabled || state.uiMode !== "robot") {
+          return;
+        }
+        const m = state.urdfMesh;
+        if (!m.ready || !m.controls || !m.camera || !m.THREE) {
+          setFollowDebugTextThrottled(nowMs, "fc waiting: URDF mesh renderer not ready");
+          return;
+        }
+        const fixedFrame = normalizeFrameId(m.fixedFrame || defaultFixedFrame || "world");
+        if (!fixedFrame) {
+          setFollowDebugTextThrottled(nowMs, "fc waiting: fixed_frame unresolved");
+          return;
+        }
+
+        const strictCache = new Map();
+        const strictVisiting = new Set();
+
+        let anchor = null;
+        if (followCamState.activeAnchorFrame) {
+          anchor = resolveFrameTfCandidate(
+            followCamState.activeAnchorFrame,
+            fixedFrame,
+            strictCache,
+            strictVisiting,
+          );
+        }
+        if (!anchor) {
+          for (const candidate of followCamState.anchorFrames) {
+            anchor = resolveFrameTfCandidate(
+              candidate,
+              fixedFrame,
+              strictCache,
+              strictVisiting,
+            );
+            if (anchor) {
+              followCamState.activeAnchorFrame = anchor.frame;
+              break;
+            }
+          }
+        }
+        if (!anchor) {
+          setFollowDebugTextThrottled(
+            nowMs,
+            `fc waiting: anchor unavailable (${followCamState.anchorFrames.join(" -> ")})`,
+          );
+          return;
+        }
+
+        const THREE = m.THREE;
+        const anchorPosRaw = new THREE.Vector3(anchor.tf.tx, anchor.tf.ty, anchor.tf.tz);
+        if (followCamState.filteredAnchorPos) {
+          const jumpDist = anchorPosRaw.distanceTo(followCamState.filteredAnchorPos);
+          if (jumpDist > followCamState.jumpRejectDist) {
+            followCamState.jumpRejectCount += 1;
+            if (followCamState.jumpRejectCount < followCamState.jumpRejectLimit) {
+              // Reject one-shot TF outliers.
+              return;
+            }
+            // Re-sync after consecutive rejects to avoid camera freeze.
+            followCamState.filteredAnchorPos = anchorPosRaw.clone();
+            followCamState.filteredTargetBase = anchorPosRaw.clone();
+            followCamState.filteredForward = null;
+            followCamState.lastCameraGoal = null;
+            followCamState.lastTargetGoal = null;
+            followCamState.jumpRejectCount = 0;
+          } else {
+            followCamState.jumpRejectCount = 0;
+          }
+        } else {
+          followCamState.jumpRejectCount = 0;
+        }
+        if (!followCamState.filteredAnchorPos) {
+          followCamState.filteredAnchorPos = anchorPosRaw.clone();
+        } else {
+          const anchorDelta = anchorPosRaw.distanceTo(followCamState.filteredAnchorPos);
+          if (anchorDelta >= followCamState.minPosDeadband) {
+            followCamState.filteredAnchorPos.lerp(anchorPosRaw, followCamState.anchorLerp);
+          }
+        }
+        const anchorPos = followCamState.filteredAnchorPos.clone();
+        const anchorQ = new THREE.Quaternion(anchor.tf.qx, anchor.tf.qy, anchor.tf.qz, anchor.tf.qw);
+        const worldUp = new THREE.Vector3(0, 0, 1);
+        let targetBaseRaw = anchorPos.clone();
+        const leftTip = resolveFirstAvailableFrameTf(
+          followCamState.leftTipFrames,
+          fixedFrame,
+          strictCache,
+          strictVisiting,
+        );
+        const rightTip = resolveFirstAvailableFrameTf(
+          followCamState.rightTipFrames,
+          fixedFrame,
+          strictCache,
+          strictVisiting,
+        );
+        const leftTipFrame = leftTip ? leftTip.frame : "none";
+        const rightTipFrame = rightTip ? rightTip.frame : "none";
+        let targetBaseSource = "anchor_fallback";
+        if (leftTip && rightTip) {
+          targetBaseRaw = new THREE.Vector3(
+            (leftTip.tf.tx + rightTip.tf.tx) * 0.5,
+            (leftTip.tf.ty + rightTip.tf.ty) * 0.5,
+            (leftTip.tf.tz + rightTip.tf.tz) * 0.5,
+          );
+          targetBaseSource = "tip_mid";
+        } else if (leftTip || rightTip) {
+          const soloTip = leftTip || rightTip;
+          targetBaseRaw = new THREE.Vector3(soloTip.tf.tx, soloTip.tf.ty, soloTip.tf.tz);
+          targetBaseSource = leftTip ? "left_tip_only" : "right_tip_only";
+        } else {
+          const anchorForward = new THREE.Vector3(1, 0, 0).applyQuaternion(anchorQ);
+          anchorForward.z = 0.0;
+          if (anchorForward.lengthSq() < 1e-8) {
+            anchorForward.set(1, 0, 0);
+          }
+          anchorForward.normalize();
+          targetBaseRaw = anchorPos.clone().addScaledVector(
+            anchorForward,
+            followCamState.tipFallbackDistance,
+          );
+          targetBaseSource = `anchor_x(${anchor.frame})`;
+        }
+        if (
+          followCamState.filteredTargetBase &&
+          targetBaseRaw.distanceTo(followCamState.filteredTargetBase) > followCamState.jumpRejectDist
+        ) {
+          targetBaseRaw = followCamState.filteredTargetBase.clone();
+        }
+        if (!followCamState.filteredTargetBase) {
+          followCamState.filteredTargetBase = targetBaseRaw.clone();
+        } else {
+          const targetBaseDelta = targetBaseRaw.distanceTo(followCamState.filteredTargetBase);
+          if (targetBaseDelta >= followCamState.minPosDeadband) {
+            followCamState.filteredTargetBase.lerp(targetBaseRaw, followCamState.targetBaseLerp);
+          }
+        }
+        const targetBase = followCamState.filteredTargetBase.clone();
+
+        // Rebuild camera direction from fingertip geometry:
+        //   front = span(left->right) x axis(anchor->tip-mid), then choose outward side.
+        const fingerAxis = targetBase.clone().sub(anchorPos);
+        const rawForward = new THREE.Vector3();
+        let forwardSource = `${targetBaseSource}_geom`;
+        let tipSpan = null;
+        if (leftTip && rightTip) {
+          tipSpan = new THREE.Vector3(
+            rightTip.tf.tx - leftTip.tf.tx,
+            rightTip.tf.ty - leftTip.tf.ty,
+            rightTip.tf.tz - leftTip.tf.tz,
+          );
+          if (tipSpan.lengthSq() >= 1e-8 && fingerAxis.lengthSq() >= 1e-8) {
+            rawForward.copy(tipSpan.clone().cross(fingerAxis));
+            if (rawForward.lengthSq() >= 1e-8) {
+              forwardSource = "tip_span_x_finger_axis";
+            }
+          }
+        }
+        if (rawForward.lengthSq() < 1e-8 && tipSpan && tipSpan.lengthSq() >= 1e-8) {
+          rawForward.copy(tipSpan.clone().cross(worldUp));
+          if (rawForward.lengthSq() >= 1e-8) {
+            forwardSource = "tip_span_x_world_up";
+          }
+        }
+        if (rawForward.lengthSq() < 1e-8 && fingerAxis.lengthSq() >= 1e-8) {
+          rawForward.copy(fingerAxis);
+          forwardSource = `${targetBaseSource}_finger_axis`;
+        }
+        if (rawForward.lengthSq() < 1e-8) {
+          rawForward.set(0, 1, 0).applyQuaternion(anchorQ);
+          forwardSource = `anchor_y(${anchor.frame})`;
+        }
+        if (rawForward.lengthSq() < 1e-8) {
+          rawForward.set(0, 1, 0);
+          forwardSource = "world_y";
+        }
+        rawForward.normalize();
+        // Guard against sudden hemisphere flips while moving laterally.
+        const sign = followCamState.forwardSign >= 0.0 ? 1.0 : -1.0;
+        if (followCamState.filteredForward) {
+          const signedCandidate = rawForward.clone().multiplyScalar(sign);
+          if (signedCandidate.dot(followCamState.filteredForward) < 0.0) {
+            rawForward.multiplyScalar(-1.0);
+            forwardSource += "_flip_guard";
+          }
+        }
+        const rawForwardUnsigned = rawForward.clone();
+        rawForward.multiplyScalar(sign);
+        if (!followCamState.filteredForward) {
+          followCamState.filteredForward = rawForward.clone();
+        } else {
+          const dot = Math.max(-1.0, Math.min(1.0, followCamState.filteredForward.dot(rawForward)));
+          const angleDeg = Math.acos(dot) * 180.0 / Math.PI;
+          if (angleDeg >= followCamState.minForwardDeg) {
+            followCamState.filteredForward.lerp(rawForward, followCamState.forwardLerp).normalize();
+          }
+        }
+        const forward = followCamState.filteredForward;
+        const signLabel = followCamState.forwardSign >= 0.0 ? "+" : "-";
+        let rightBasis = forward.clone().cross(worldUp);
+        if (rightBasis.lengthSq() < 1e-8) {
+          rightBasis = new THREE.Vector3(1, 0, 0).applyQuaternion(anchorQ).cross(worldUp);
+        }
+        if (rightBasis.lengthSq() < 1e-8) {
+          rightBasis = new THREE.Vector3(1, 0, 0);
+        }
+        rightBasis.normalize();
+        const upBasis = rightBasis.clone().cross(forward).normalize();
+        const captureLocalOffset = (worldPos) => {
+          const delta = worldPos.clone().sub(targetBase);
+          return {
+            right: delta.dot(rightBasis),
+            up: delta.dot(upBasis),
+            forward: delta.dot(forward),
+          };
+        };
+        const applyLocalOffset = (localOffset) => targetBase
+          .clone()
+          .addScaledVector(rightBasis, localOffset.right)
+          .addScaledVector(upBasis, localOffset.up)
+          .addScaledVector(forward, localOffset.forward);
+
+        if (followCamState.manualOrbitActive || followCamState.captureViewOnNextUpdate) {
+          followCamState.userCameraOffsetLocal = captureLocalOffset(m.camera.position);
+          followCamState.userTargetOffsetLocal = captureLocalOffset(m.controls.target);
+          followCamState.captureViewOnNextUpdate = false;
+          if (followCamState.manualOrbitActive) {
+            setFollowDebugTextThrottled(nowMs, "fc manual orbit: updating follow view");
+            return;
+          }
+        }
+
+        // Place the camera in front-upper of fingertip center and look back toward sensor area.
+        let camGoal;
+        let targetGoal;
+        if (followCamState.userCameraOffsetLocal && followCamState.userTargetOffsetLocal) {
+          camGoal = applyLocalOffset(followCamState.userCameraOffsetLocal);
+          targetGoal = applyLocalOffset(followCamState.userTargetOffsetLocal);
+        } else {
+          camGoal = targetBase
+            .clone()
+            .addScaledVector(forward, followCamState.forwardDistance)
+            .addScaledVector(worldUp, followCamState.heightOffset);
+          targetGoal = targetBase
+            .clone()
+            .addScaledVector(forward, -followCamState.lookAhead)
+            .addScaledVector(worldUp, followCamState.lookUp);
+
+          if (camGoal.z <= targetGoal.z + 0.01) {
+            camGoal.z = targetGoal.z + 0.01;
+          }
+        }
+        setFollowDebugTextThrottled(
+          nowMs,
+          `fc anchor=${anchor.frame} left=${leftTipFrame} right=${rightTipFrame} src=${forwardSource} raw=${formatVec3(rawForwardUnsigned)} fwd=${formatVec3(forward)} sign=${signLabel}`,
+        );
+
+        if (followCamState.snapOnEnable) {
+          followCamState.lastCameraGoal = camGoal.clone();
+          followCamState.lastTargetGoal = targetGoal.clone();
+          m.camera.position.copy(camGoal);
+          m.controls.target.copy(targetGoal);
+          m.controls.update();
+          followCamState.snapOnEnable = false;
+          return;
+        }
+
+        followCamState.lastCameraGoal = camGoal.clone();
+        followCamState.lastTargetGoal = targetGoal.clone();
+        const nextCam = m.camera.position.clone().lerp(
+          followCamState.lastCameraGoal,
+          followCamState.positionLerp,
+        );
+        const camDelta = nextCam.clone().sub(m.camera.position);
+        const camStep = camDelta.length();
+        if (camStep > followCamState.maxCamStep) {
+          camDelta.setLength(followCamState.maxCamStep);
+          nextCam.copy(m.camera.position).add(camDelta);
+        }
+        const nextTarget = m.controls.target.clone().lerp(
+          followCamState.lastTargetGoal,
+          followCamState.targetLerp,
+        );
+        const targetDelta = nextTarget.clone().sub(m.controls.target);
+        const targetStep = targetDelta.length();
+        if (targetStep > followCamState.maxTargetStep) {
+          targetDelta.setLength(followCamState.maxTargetStep);
+          nextTarget.copy(m.controls.target).add(targetDelta);
+        }
+        m.camera.position.copy(nextCam);
+        m.controls.target.copy(nextTarget);
+      }
+
+      function updateModeButtons() {
+        gridBtn.classList.toggle("active", state.uiMode === "grid");
+        xelaBtn.classList.toggle("active", state.uiMode === "xela");
+        robotBtn.classList.toggle("active", state.uiMode === "robot");
+        if (followBtn) {
+          const robotMode = state.uiMode === "robot";
+          followBtn.disabled = !robotMode;
+          followBtn.classList.toggle("active", robotMode && followCamState.enabled);
+          followBtn.title = robotMode
+            ? "Follow gripper camera. Manual orbit updates the follow view immediately."
+            : "FollowCam is available in RobotModel mode.";
+        }
+        updateFollowDebugUi();
+      }
+
+      function bumpUrdfRenderEpoch() {
+        state.urdfRenderEpoch += 1;
+      }
+
+      function runUrdfRenderGuarded(payload, callback) {
+        const epoch = ++state.urdfRenderEpoch;
+        renderUrdfMesh(payload).then((okRender) => {
+          if (epoch !== state.urdfRenderEpoch) {
+            return;
+          }
+          callback(okRender);
+        });
+      }
+
+      function setStatus(text, ok) {
+        uiFeedback.setStatus(text, ok);
+      }
+
+      function setHintText(text) {
+        uiFeedback.setHintText(text);
+      }
+
+      function setModeInfoText(text) {
+        uiFeedback.setModeInfoText(text);
+      }
+
+      function forceColor(norm) {
+        return forceColorCore(norm);
+      }
+
+      function resizeCanvas() {
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        const rect = canvas.getBoundingClientRect();
+        const w = Math.max(1, Math.floor(rect.width * dpr));
+        const h = Math.max(1, Math.floor(rect.height * dpr));
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w;
+          canvas.height = h;
+        }
+      }
+
+      function setUrdf3DVisible(visible) {
+        const next = Boolean(visible);
+        if (state.urdf3dVisible === next) {
+          return;
+        }
+        state.urdf3dVisible = next;
+        urdf3dLayer.style.display = next ? "block" : "none";
+        canvas.style.display = next ? "none" : "block";
+        if (next) {
+          resizeUrdfMeshRenderer();
+        }
+      }
+
+      function applyOrbitProfileForMode() {
+        const m = state.urdfMesh;
+        if (!m.ready || !m.controls || !m.camera) return;
+        const isRobotMode = state.uiMode === "robot";
+        const followEnabled = isRobotMode && followCamState.enabled;
+        m.camera.up.set(0, 0, 1);
+        m.controls.enableDamping = !followEnabled;
+        m.controls.screenSpacePanning = true;
+        m.controls.enablePan = true;
+        m.controls.minPolarAngle = 0.02;
+        // Allow bottom-side inspection while avoiding singularity at exact PI.
+        m.controls.maxPolarAngle = Math.PI - 0.02;
+        m.controls.minDistance = 0.04;
+        m.controls.maxDistance = 4.0;
+        if (m.worldGrid) {
+          m.worldGrid.visible = isRobotMode;
+        }
+        m.controls.update();
+      }
+
+      function pickSensorAwareLinkColor(linkName) {
+        const name = normalizeFrameId(linkName).toLowerCase();
+        if (!name) return 0x88a7c8;
+        const hasLeftPrefix =
+          /(^|[\/:_])x_taxel_0?1([\/:_]|$)/.test(name) ||
+          /(^|[\/:_])x_base_0?1([\/:_]|$)/.test(name) ||
+          name.includes("x_taxel_01") ||
+          name.includes("x_base_01");
+        const hasRightPrefix =
+          /(^|[\/:_])x_taxel_0?2([\/:_]|$)/.test(name) ||
+          /(^|[\/:_])x_base_0?2([\/:_]|$)/.test(name) ||
+          name.includes("x_taxel_02") ||
+          name.includes("x_base_02");
+        const isLeftModule =
+          hasLeftPrefix ||
+          name.includes("_01_uspr2f") ||
+          name.includes("uspr2f_01") ||
+          name.includes("module_01");
+        const isRightModule =
+          hasRightPrefix ||
+          name.includes("_02_uspr2f") ||
+          name.includes("uspr2f_02") ||
+          name.includes("module_02");
+        if (isLeftModule) {
+          return 0x7ddc6f;
+        }
+        if (isRightModule) {
+          return 0xf59e0b;
+        }
+        if (name.includes("x_taxel_") || name.includes("uspa46")) {
+          return 0x93c5fd;
+        }
+        return 0x88a7c8;
+      }
+
+      function getLinkMaterial(THREE, linkName) {
+        const m = state.urdfMesh;
+        const color = pickSensorAwareLinkColor(linkName);
+        const key = String(color);
+        if (!m.materialCache.has(key)) {
+          m.materialCache.set(key, new THREE.MeshStandardMaterial({
+            color,
+            roughness: 0.72,
+            metalness: 0.08,
+          }));
+        }
+        return m.materialCache.get(key);
+      }
+      const urdfMeshRenderer = createUrdfMeshRenderer({
+        state,
+        urdf3dLayer,
+        normalizeFrameId,
+        setHintText,
+        safeErrorText,
+        applyOrbitProfileForMode,
+        getLinkMaterial,
+        onOrbitInteraction: onFollowOrbitInteraction,
+      });
+
+      function subscribeRosTopic(topicName, throttleMs = 0, messageType = "") {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+          return;
+        }
+        const req = {
+          op: "subscribe",
+          topic: topicName,
+          queue_length: 1,
+          throttle_rate: Math.max(0, throttleMs),
+        };
+        if (messageType) {
+          req.type = messageType;
+        }
+        state.ws.send(JSON.stringify(req));
+      }
+
+      function ensureSourceSubscriptions() {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN || state.sourceTopicSubscribed) {
+          return;
+        }
+        subscribeRosTopic(topic, 0, "std_msgs/msg/String");
+        for (const src of Object.values(state.urdfSources)) {
+          subscribeRosTopic(src.robotDescriptionTopic, 0, "std_msgs/msg/String");
+          subscribeRosTopic(src.tfTopic, 25, "tf2_msgs/msg/TFMessage");
+          subscribeRosTopic(src.tfStaticTopic, 0, "tf2_msgs/msg/TFMessage");
+          state.sourceByService.set(src.robotDescriptionService, src.name);
+        }
+        state.sourceTopicSubscribed = true;
+      }
+
+      function requestRobotDescriptionViaService(sourceName, force = false) {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+          return;
+        }
+        const src = state.urdfSources[sourceName];
+        if (!src) {
+          return;
+        }
+        if (src.pendingRobotDescriptionService) {
+          return;
+        }
+        if (!force && src.robotDescriptionXml) {
+          return;
+        }
+        const now = performance.now();
+        if (!force && now - src.lastRobotDescriptionServiceReqMs < 1000) {
+          return;
+        }
+        src.pendingRobotDescriptionService = true;
+        src.lastRobotDescriptionServiceReqMs = now;
+        state.sourceByService.set(src.robotDescriptionService, src.name);
+        const serviceCallId = `get_desc_${src.name}_${++state.serviceCallSeq}`;
+        state.sourceByServiceCallId.set(serviceCallId, src.name);
+        state.ws.send(JSON.stringify({
+          id: serviceCallId,
+          op: "call_service",
+          service: src.robotDescriptionService,
+          type: "rcl_interfaces/srv/GetParameters",
+          args: { names: ["robot_description"] },
+        }));
+      }
+
+      function parseUrdfRootLink(xmlText) {
+        return urdfMeshRenderer.parseRootLink(xmlText);
+      }
+
+      async function ensureUrdfMeshRuntime() {
+        return urdfMeshRenderer.ensureRuntime();
+      }
+
+      function resizeUrdfMeshRenderer() {
+        urdfMeshRenderer.resize();
+      }
+
+      function onRobotDescriptionMessage(msg, sourceName) {
+        const src = state.urdfSources[sourceName];
+        if (!src) return;
+        const data = typeof msg?.data === "string" ? msg.data : "";
+        if (!data || data === src.robotDescriptionXml) {
+          return;
+        }
+        src.robotDescriptionXml = data;
+        src.robotRootLink = parseUrdfRootLink(data);
+        src.robotDescriptionVersion += 1;
+        src.frameAliasCache.clear();
+      }
+
+      function onTfMessage(msg, isStatic, sourceName) {
+        const src = state.urdfSources[sourceName];
+        if (!src) return;
+        const transforms = Array.isArray(msg?.transforms) ? msg.transforms : [];
+        if (transforms.length === 0) return;
+        const edgeMap = src.tfEdges;
+        let structureChanged = false;
+        for (const tr of transforms) {
+          const child = normalizeFrameId(tr.child_frame_id);
+          const parent = normalizeFrameId(tr.header?.frame_id);
+          if (!child || !parent) continue;
+          const prev = edgeMap.get(child);
+          if (!prev || prev.parent !== parent) {
+            structureChanged = true;
+          }
+          const t = tr.transform?.translation || {};
+          const q = tr.transform?.rotation || {};
+          edgeMap.set(child, {
+            parent,
+            tx: Number(t.x) || 0,
+            ty: Number(t.y) || 0,
+            tz: Number(t.z) || 0,
+            qx: Number(q.x) || 0,
+            qy: Number(q.y) || 0,
+            qz: Number(q.z) || 0,
+            qw: Number(q.w) || 1,
+            static: !!isStatic,
+          });
+        }
+        if (structureChanged) {
+          src.frameAliasCache.clear();
+        }
+      }
+
+      async function buildUrdfRobotFromDescription() {
+        return urdfMeshRenderer.buildRobotFromDescription();
+      }
+
+      function autoFrameUrdfMeshCamera(force = false) {
+        const m = state.urdfMesh;
+        if (!m.ready || !m.robotBuilt) return;
+        if (!force && m.autoFrameDone) return;
+
+        const THREE = m.THREE;
+        const box = new THREE.Box3();
+        let hasVisible = false;
+        for (const group of m.linkGroups.values()) {
+          if (!group.visible) continue;
+          box.expandByObject(group);
+          hasVisible = true;
+        }
+        if (!hasVisible || box.isEmpty()) return;
+
+        const center = new THREE.Vector3();
+        const size = new THREE.Vector3();
+        box.getCenter(center);
+        box.getSize(size);
+        const radius = Math.max(size.length() * 0.45, 0.02);
+
+        // In RobotModel mode, orbit around base projection on the world floor (z=0).
+        if (state.uiMode === "robot") {
+          const src = getActiveUrdfSource();
+          const preferredBaseLinks = [
+            normalizeFrameId(src?.robotRootLink || ""),
+            "base_link",
+            "base_link_inertia",
+            "base",
+            "base_footprint",
+          ].filter((n, idx, arr) => n && arr.indexOf(n) === idx);
+          let foundBase = false;
+          for (const name of preferredBaseLinks) {
+            const group = m.linkGroups.get(name);
+            if (!group || !group.visible) continue;
+            const basePos = new THREE.Vector3();
+            group.getWorldPosition(basePos);
+            center.set(basePos.x, basePos.y, 0.0);
+            foundBase = true;
+            break;
+          }
+          if (!foundBase) {
+            center.set(0, 0, 0);
+          }
+        }
+
+        m.controls.target.copy(center);
+        m.camera.position.set(
+          center.x + radius * 1.9,
+          center.y - radius * 2.3,
+          center.z + radius * 1.4,
+        );
+        m.camera.near = Math.max(radius / 1000.0, 0.0005);
+        m.camera.far = Math.max(radius * 600.0, 20.0);
+        m.camera.updateProjectionMatrix();
+        applyOrbitProfileForMode();
+        m.controls.update();
+        m.autoFrameDone = true;
+      }
+
+      function resolveFrameToFixed(frame, fixedFrame, cache, visiting, allowLooseRoot = false) {
+        const m = state.urdfMesh;
+        const fixed = normalizeFrameId(fixedFrame);
+        const rawFrame = normalizeFrameId(frame);
+        if (!rawFrame) return null;
+        const resolvedFrame = resolveChildFrameAlias(rawFrame) || rawFrame;
+        if (resolvedFrame === fixed || rawFrame === fixed) {
+          return { tx: 0, ty: 0, tz: 0, qx: 0, qy: 0, qz: 0, qw: 1 };
+        }
+        if (cache.has(resolvedFrame)) return cache.get(resolvedFrame);
+        if (visiting.has(resolvedFrame)) return null;
+        visiting.add(resolvedFrame);
+        const edge = m.tfEdges.get(resolvedFrame);
+        if (!edge) {
+          visiting.delete(resolvedFrame);
+          if (allowLooseRoot) {
+            const isKnownGraphFrame = m.tfParentFrames.has(resolvedFrame) || m.tfEdges.has(resolvedFrame);
+            if (!isKnownGraphFrame) {
+              return null;
+            }
+            const root = { tx: 0, ty: 0, tz: 0, qx: 0, qy: 0, qz: 0, qw: 1 };
+            cache.set(resolvedFrame, root);
+            return root;
+          }
+          return null;
+        }
+        const parentTf = resolveFrameToFixed(edge.parent, fixed, cache, visiting, allowLooseRoot);
+        visiting.delete(resolvedFrame);
+        if (!parentTf) return null;
+
+        const THREE = m.THREE;
+        const parentQ = new THREE.Quaternion(parentTf.qx, parentTf.qy, parentTf.qz, parentTf.qw);
+        const localQ = new THREE.Quaternion(edge.qx, edge.qy, edge.qz, edge.qw);
+        const combinedQ = parentQ.clone().multiply(localQ);
+        const localT = new THREE.Vector3(edge.tx, edge.ty, edge.tz).applyQuaternion(parentQ);
+        const combinedT = localT.add(new THREE.Vector3(parentTf.tx, parentTf.ty, parentTf.tz));
+        const out = {
+          tx: combinedT.x,
+          ty: combinedT.y,
+          tz: combinedT.z,
+          qx: combinedQ.x,
+          qy: combinedQ.y,
+          qz: combinedQ.z,
+          qw: combinedQ.w,
+        };
+        cache.set(resolvedFrame, out);
+        return out;
+      }
+
+      function updateRobotLinkTransforms(fixedFrame, allowLooseRootFallback = true) {
+        const m = state.urdfMesh;
+        if (!m.ready || !m.robotBuilt) return { total: 0, visibleCount: 0, missingCount: 0, fallbackVisibleCount: 0 };
+        const parentFrames = new Set();
+        for (const edge of m.tfEdges.values()) {
+          if (edge.parent) parentFrames.add(normalizeFrameId(edge.parent));
+        }
+        m.tfParentFrames = parentFrames;
+        const strictCache = new Map();
+        const strictVisiting = new Set();
+        const looseCache = new Map();
+        const looseVisiting = new Set();
+        let visibleCount = 0;
+        let missingCount = 0;
+        let fallbackVisibleCount = 0;
+        for (const [linkName, group] of m.linkGroups.entries()) {
+          let tf = resolveFrameToFixed(linkName, fixedFrame, strictCache, strictVisiting, false);
+          let usedFallback = false;
+          if (!tf && allowLooseRootFallback) {
+            tf = resolveFrameToFixed(linkName, fixedFrame, looseCache, looseVisiting, true);
+            usedFallback = !!tf;
+          }
+          if (!tf) {
+            group.visible = false;
+            missingCount += 1;
+            continue;
+          }
+          group.visible = true;
+          group.position.set(tf.tx, tf.ty, tf.tz);
+          group.quaternion.set(tf.qx, tf.qy, tf.qz, tf.qw);
+          visibleCount += 1;
+          if (usedFallback) {
+            fallbackVisibleCount += 1;
+          }
+        }
+        const stats = {
+          total: m.linkGroups.size,
+          visibleCount,
+          missingCount,
+          fallbackVisibleCount,
+        };
+        m.lastTfStats = stats;
+        m.tfFallbackActive = fallbackVisibleCount > 0;
+        return stats;
+      }
+
+      function ensureMarkerObject(key) {
+        const m = state.urdfMesh;
+        const THREE = m.THREE;
+        if (m.markerMap.has(key)) {
+          return m.markerMap.get(key);
+        }
+        const group = new THREE.Group();
+        const sphere = new THREE.Mesh(
+          new THREE.SphereGeometry(0.0026, 10, 10),
+          new THREE.MeshStandardMaterial({ color: 0x60a5fa, roughness: 0.2, metalness: 0.0 }),
+        );
+        const arrow = new THREE.ArrowHelper(
+          new THREE.Vector3(1, 0, 0),
+          new THREE.Vector3(0, 0, 0),
+          0.006,
+          0xf8fafc,
+          0.0024,
+          0.0016,
+        );
+        group.add(sphere);
+        group.add(arrow);
+        m.markerGroup.add(group);
+        const marker = { group, sphere, arrow };
+        m.markerMap.set(key, marker);
+        return marker;
+      }
+
+      function resolveMarkerPose(frameId, fixedFrame, strictCache, strictVisiting, looseCache, looseVisiting) {
+        const frame = resolveChildFrameAlias(frameId) || normalizeFrameId(frameId);
+        if (!frame) return null;
+        let tf = resolveFrameToFixed(frame, fixedFrame, strictCache, strictVisiting, false);
+        if (tf) return tf;
+        return resolveFrameToFixed(frame, fixedFrame, looseCache, looseVisiting, true);
+      }
+
+      function updateUrdfMarkers(payload) {
+        const m = state.urdfMesh;
+        if (!m.ready) return;
+        const points = (payload?.urdf?.points && Array.isArray(payload.urdf.points)) ? payload.urdf.points : [];
+        const liveKeys = new Set();
+        const xyRange = Math.max(1e-6, Number(payload?.meta?.xy_force_range) || 0.8);
+        const zRange = Math.max(1e-6, Number(payload?.meta?.z_force_range) || 14.0);
+        const xyArrowGain = 3.0;
+        const fixedFrame = normalizeFrameId(m.fixedFrame || payload?.fixed_frame || defaultFixedFrame);
+        const strictCache = new Map();
+        const strictVisiting = new Set();
+        const looseCache = new Map();
+        const looseVisiting = new Set();
+
+        for (const p of points) {
+          const key = `${p.module}:${p.sensor_index}`;
+          liveKeys.add(key);
+          const marker = ensureMarkerObject(key);
+          marker.group.visible = true;
+          const tfPose = resolveMarkerPose(
+            p.frame_id,
+            fixedFrame,
+            strictCache,
+            strictVisiting,
+            looseCache,
+            looseVisiting,
+          );
+          if (tfPose) {
+            marker.group.position.set(tfPose.tx, tfPose.ty, tfPose.tz);
+            marker.group.quaternion.set(tfPose.qx, tfPose.qy, tfPose.qz, tfPose.qw);
+          } else {
+            marker.group.position.set(Number(p.x) || 0, Number(p.y) || 0, Number(p.z) || 0);
+            marker.group.quaternion.set(0, 0, 0, 1);
+          }
+
+          const norm = Math.max(0, Math.min(1, Number(p.norm) || 0));
+          const rgb = forceColorRgb(norm);
+          marker.sphere.material.color.setRGB(rgb.r / 255, rgb.g / 255, rgb.b / 255);
+
+          // Sidecar rendering convention: X axis is mirrored vs sensor stream.
+          const fxRaw = -(Number(p.fx) || 0);
+          const fyRaw = Number(p.fy) || 0;
+          const fz = Number(p.fz) || 0;
+          // URDF payload already contains module-wise sign normalization.
+          const dir = new m.THREE.Vector3(
+            (fxRaw / xyRange) * xyArrowGain,
+            (fyRaw / xyRange) * xyArrowGain,
+            fz / zRange,
+          );
+          const mag = dir.length();
+          if (mag < 0.012) {
+            marker.arrow.visible = false;
+            continue;
+          }
+          marker.arrow.visible = true;
+          dir.normalize();
+          const length = clamp(0.004 + mag * 0.012, 0.004, 0.028);
+          marker.arrow.setDirection(dir);
+          marker.arrow.setLength(length, Math.min(0.006, length * 0.35), Math.min(0.004, length * 0.22));
+          marker.arrow.setColor(new m.THREE.Color(0xf1f5f9));
+        }
+
+        for (const [key, marker] of m.markerMap.entries()) {
+          if (!liveKeys.has(key)) {
+            marker.group.visible = false;
+          }
+        }
+      }
+
+      async function renderUrdfMesh(payload) {
+        const m = state.urdfMesh;
+        if (!m.ready) return false;
+        bindActiveUrdfSourceToMesh(false);
+        resizeUrdfMeshRenderer();
+        if (!m.robotBuilt && m.robotDescriptionXml) {
+          await buildUrdfRobotFromDescription();
+        }
+        if (!m.robotBuilt) return false;
+
+        const fixedFrame = selectFixedFrame(getActiveUrdfSource(), payload?.fixed_frame || m.fixedFrame || defaultFixedFrame);
+        m.fixedFrame = fixedFrame || "world";
+        const allowLooseRootFallback = state.uiMode !== "robot";
+        const tfStats = updateRobotLinkTransforms(m.fixedFrame, allowLooseRootFallback);
+        if (tfStats.total > 0 && tfStats.visibleCount === 0) {
+          const activeSource = getActiveUrdfSource();
+          m.failReason =
+            `No link transforms resolved from ${activeSource.tfTopic} (fixed_frame=${m.fixedFrame}).`;
+          return false;
+        }
+        autoFrameUrdfMeshCamera(false);
+        updateUrdfMarkers(payload);
+        updateFollowCamera(performance.now());
+
+        m.controls.update();
+        m.renderer.render(m.scene, m.camera);
+        return true;
+      }
+
+      function updateSmoothedVectors(payload) {
+        updateSmoothedVectorsCore(state, payload, 0.22, state.uiMode);
+      }
+
+      function drawArrow(x0, y0, dx, dy, lineWidth, color) {
+        drawArrowCanvas(ctx, x0, y0, dx, dy, lineWidth, color);
+      }
+
+      function handleRosbridgeMessage(msg) {
+        if (msg.op === "status" && String(msg.level || "").toLowerCase() === "error") {
+          const statusText = String(msg.msg || "");
+          if (statusText !== state.lastRosbridgeErrorText) {
+            state.lastRosbridgeErrorText = statusText;
+            console.warn("[xela-sidecar] rosbridge error:", statusText);
+          }
+          if (/infer topic type|unknown topic type/i.test(statusText)) {
+            state.sourceTopicSubscribed = false;
+            setTimeout(() => ensureSourceSubscriptions(), 200);
+          }
+          return;
+        }
+
+        if (msg.op === "service_response" && msg.service === "/xela_viz_mode_manager/set_mode") {
+          state.pendingSwitch = false;
+          if (msg.result && msg.values && msg.values.success) {
+            setHintText(`Mode switch accepted: ${msg.values.message || ""}`);
+          } else {
+            const reason = msg.values && msg.values.message ? msg.values.message : "service call failed";
+            setHintText(`Mode switch failed: ${reason}`);
+          }
+          return;
+        }
+
+        const hasServiceCallId = typeof msg.id === "string" && state.sourceByServiceCallId.has(msg.id);
+        const sourceNameFromService = state.sourceByService.get(msg.service);
+        if (msg.op === "service_response" && (hasServiceCallId || sourceNameFromService)) {
+          const sourceName = hasServiceCallId
+            ? state.sourceByServiceCallId.get(msg.id)
+            : sourceNameFromService;
+          if (hasServiceCallId) {
+            state.sourceByServiceCallId.delete(msg.id);
+          }
+          const src = state.urdfSources[sourceName];
+          if (src) {
+            src.pendingRobotDescriptionService = false;
+          }
+          const values = Array.isArray(msg.values?.values) ? msg.values.values : [];
+          if (values.length > 0) {
+            const first = values[0];
+            const xml = typeof first?.string_value === "string" ? first.string_value : "";
+            if (xml) {
+              onRobotDescriptionMessage({ data: xml }, sourceName);
+            }
+          }
+          return;
+        }
+
+        for (const src of Object.values(state.urdfSources)) {
+          if (msg.topic === src.robotDescriptionTopic && msg.msg) {
+            onRobotDescriptionMessage(msg.msg, src.name);
+            return;
+          }
+          if (msg.topic === src.tfTopic && msg.msg) {
+            onTfMessage(msg.msg, false, src.name);
+            return;
+          }
+          if (msg.topic === src.tfStaticTopic && msg.msg) {
+            onTfMessage(msg.msg, true, src.name);
+            return;
+          }
+        }
+
+        if (msg.topic === topic && msg.msg) {
+          const data = msg.msg.data;
+          if (typeof data !== "string") return;
+          try {
+            state.payload = JSON.parse(data);
+            state.lastReceivedMs = performance.now();
+            const prevRequestedMode = state.requestedVizMode;
+            state.requestedVizMode = String(state.payload?.meta?.requested_viz_mode || "grid").toLowerCase();
+            state.sidecarRenderMode = String(state.payload?.meta?.sidecar_render_mode || "grid-2d");
+            state.modelName = String(state.payload?.meta?.model_name || "");
+            if (!state.modeOverriddenByUser) {
+              state.uiMode = state.requestedVizMode === "urdf" ? "xela" : "grid";
+            }
+            if (state.uiMode !== "grid" && state.requestedVizMode === "urdf" && prevRequestedMode !== "urdf") {
+              resetUrdfCamera();
+              requestRobotDescriptionViaService(getUrdfSourceForUiMode(), true);
+            }
+            updateSmoothedVectors(state.payload);
+            updateModeButtons();
+          } catch (_) {
+          }
+        }
+      }
+      const rosbridgeClient = createRosbridgeClient({
+        state,
+        wsCandidates,
+        topicInfoEl: topicInfo,
+        topicInfoTextFor: (activeWsUrl) =>
+          `${topic} | xela:${xelaTfTopic} robot:${robotTfTopic} via ${activeWsUrl || wsCandidates.join(" | ")}`,
+        setStatus,
+        onOpen: () => {
+          state.sourceTopicSubscribed = false;
+          for (const src of Object.values(state.urdfSources)) {
+            src.pendingRobotDescriptionService = false;
+          }
+          ensureSourceSubscriptions();
+          requestRobotDescriptionViaService("xela", true);
+          requestRobotDescriptionViaService("robot", true);
+          updateModeButtons();
+        },
+        onCloseOpened: () => {
+          state.pendingSwitch = false;
+          setStatus("Disconnected", false);
+        },
+        onErrorOpened: () => {
+          setStatus("Socket error", false);
+        },
+        onMessageParsed: handleRosbridgeMessage,
+      });
+
+      function connect(candidateIndex = 0) {
+        rosbridgeClient.connect(candidateIndex);
+      }
+
+      window.addEventListener("error", (event) => {
+        const detail = event?.message || "Unknown script error";
+        console.error("[xela-sidecar] window error:", event);
+        setHintText(`Web error: ${detail}`);
+      });
+      window.addEventListener("unhandledrejection", (event) => {
+        const detail = safeErrorText(event?.reason);
+        console.error("[xela-sidecar] unhandled rejection:", event?.reason);
+        setHintText(`Web promise error: ${detail}`);
+      });
+
+      function requestModeSwitch(toUrdf) {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+          setHintText("Cannot switch mode: websocket disconnected.");
+          return;
+        }
+        if (state.pendingSwitch) {
+          setHintText("Mode switch already in progress.");
+          return;
+        }
+        const target = toUrdf ? "urdf" : "grid";
+        state.pendingSwitch = true;
+        state.requestedVizMode = target;
+        updateModeButtons();
+        setHintText(`Switching viz_mode to ${target}...`);
+        state.ws.send(JSON.stringify({
+          op: "call_service",
+          service: "/xela_viz_mode_manager/set_mode",
+          type: "std_srvs/srv/SetBool",
+          args: { data: !!toUrdf },
+        }));
+      }
+
+      function setUiMode(newMode) {
+        if (!["grid", "xela", "robot"].includes(newMode)) {
+          return;
+        }
+        state.modeOverriddenByUser = true;
+        const previous = state.uiMode;
+        state.uiMode = newMode;
+        updateModeButtons();
+        if (previous !== newMode) {
+          resetUrdfCamera();
+        }
+        applyOrbitProfileForMode();
+        if (newMode === "grid") {
+          requestModeSwitch(false);
+          return;
+        }
+        bindActiveUrdfSourceToMesh(true);
+        requestRobotDescriptionViaService(getUrdfSourceForUiMode(), false);
+        requestModeSwitch(true);
+      }
+
+      function drawEmpty(text) {
+        ctx.fillStyle = "#0b1222";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#93a4bf";
+        ctx.font = `${Math.max(12, Math.floor(canvas.height * 0.03))}px monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+      }
+
+      function drawGrid(payload) {
+        drawGridMode({
+          payload,
+          ctx,
+          canvas,
+          state,
+          forceColor,
+          drawArrow,
+          drawEmpty,
+        });
+      }
+
+      function buildUrdfDisplayPoints(rawPoints, rows, cols, cellSize) {
+        const moduleBuckets = new Map();
+        for (const p of rawPoints) {
+          const moduleName = p.module || "module";
+          if (!moduleBuckets.has(moduleName)) {
+            moduleBuckets.set(moduleName, []);
+          }
+          moduleBuckets.get(moduleName).push(p);
+        }
+
+        const preferred = ["left", "right"];
+        const names = [...moduleBuckets.keys()].sort((a, b) => {
+          const ai = preferred.indexOf(a);
+          const bi = preferred.indexOf(b);
+          if (ai >= 0 && bi >= 0) return ai - bi;
+          if (ai >= 0) return -1;
+          if (bi >= 0) return 1;
+          return a.localeCompare(b);
+        });
+
+        const safeRows = Math.max(1, rows);
+        const safeCols = Math.max(1, cols);
+        const pitch = Math.max(0.006, cellSize);
+        const moduleWidth = safeCols * pitch;
+        const moduleGap = Math.max(0.03, pitch * 2.2);
+
+        const laidOut = [];
+        let cursorX = 0;
+        for (let i = 0; i < names.length; i++) {
+          const name = names[i];
+          if (i > 0) {
+            cursorX += moduleWidth + moduleGap;
+          }
+
+          const pts = moduleBuckets.get(name);
+          for (const p of pts) {
+            const idx = Math.max(0, Number(p.sensor_index) || 0);
+            const row = Math.min(safeRows - 1, Math.floor(idx / safeCols));
+            const col = Math.min(safeCols - 1, idx % safeCols);
+            let lx = (col - (safeCols - 1) * 0.5) * pitch;
+            let ly = ((safeRows - 1) * 0.5 - row) * pitch;
+            if (name === "right") {
+              // Rotate the right module 180 degrees on the flat display plane.
+              lx = -lx;
+              ly = -ly;
+            }
+            laidOut.push({
+              ...p,
+              x: cursorX + lx,
+              y: ly,
+              z: 0.0,
+            });
+          }
+        }
+
+        if (!laidOut.length) {
+          return laidOut;
+        }
+
+        let minX = Number.POSITIVE_INFINITY;
+        let maxX = Number.NEGATIVE_INFINITY;
+        for (const p of laidOut) {
+          minX = Math.min(minX, p.x);
+          maxX = Math.max(maxX, p.x);
+        }
+        const centerX = (minX + maxX) * 0.5;
+        for (const p of laidOut) {
+          p.x -= centerX;
+        }
+
+        return laidOut;
+      }
+
+      function buildUrdfScene(payload) {
+        const rawPoints = (payload.urdf && payload.urdf.points) || [];
+        if (!rawPoints.length) {
+          return null;
+        }
+        const rows = Math.max(1, Number(payload.grid?.rows) || 4);
+        const cols = Math.max(1, Number(payload.grid?.cols) || 6);
+        const cellSize = Math.max(0.006, Number(payload.grid?.cell_size) || 0.015);
+        const points = buildUrdfDisplayPoints(rawPoints, rows, cols, cellSize);
+
+        let cx = 0;
+        let cy = 0;
+        let cz = 0;
+        let minX = Number.POSITIVE_INFINITY;
+        let maxX = Number.NEGATIVE_INFINITY;
+        let minY = Number.POSITIVE_INFINITY;
+        let maxY = Number.NEGATIVE_INFINITY;
+        let minZ = Number.POSITIVE_INFINITY;
+        let maxZ = Number.NEGATIVE_INFINITY;
+
+        const modules = new Map();
+        for (const p of points) {
+          cx += p.x;
+          cy += p.y;
+          cz += p.z;
+          minX = Math.min(minX, p.x);
+          maxX = Math.max(maxX, p.x);
+          minY = Math.min(minY, p.y);
+          maxY = Math.max(maxY, p.y);
+          minZ = Math.min(minZ, p.z);
+          maxZ = Math.max(maxZ, p.z);
+
+          const name = p.module || "module";
+          if (!modules.has(name)) {
+            modules.set(name, new Map());
+          }
+          modules.get(name).set(Number(p.sensor_index), p);
+        }
+
+        const n = Math.max(1, points.length);
+        cx /= n;
+        cy /= n;
+        cz /= n;
+
+        const span = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 0.04);
+        state.lastSceneExtent = span;
+
+        return {
+          points,
+          modules,
+          center: { x: cx, y: cy, z: cz },
+          rows: Math.max(2, Number(payload.grid?.rows) || 4),
+          cols: Math.max(2, Number(payload.grid?.cols) || 6),
+          span,
+        };
+      }
+
+      function projectWorld(point, scene) {
+        const cam = state.camera;
+        const relX = (point.x - scene.center.x) + cam.panX;
+        const relY = (point.y - scene.center.y) + cam.panY;
+        const relZ = (point.z - scene.center.z);
+
+        const cy = Math.cos(cam.yaw);
+        const sy = Math.sin(cam.yaw);
+        const cp = Math.cos(cam.pitch);
+        const sp = Math.sin(cam.pitch);
+
+        const x1 = cy * relX - sy * relY;
+        const y1 = sy * relX + cy * relY;
+        const z1 = relZ;
+
+        const x2 = x1;
+        const y2 = cp * y1 - sp * z1;
+        const z2 = sp * y1 + cp * z1;
+
+        const cameraDist = scene.span * 4.0 + 0.18;
+        const depth = Math.max(0.05, cameraDist - z2);
+        const persp = cameraDist / depth;
+        const base = (Math.min(canvas.width, canvas.height) * 0.43 * cam.zoom) / Math.max(scene.span, 1e-4);
+        const px = canvas.width * 0.5 + x2 * base * persp;
+        const py = canvas.height * 0.5 - y2 * base * persp;
+
+        return { x: px, y: py, z: z2, persp };
+      }
+
+      function drawUrdfFixed3D(payload) {
+        const scene = buildUrdfScene(payload);
+        if (!scene) {
+          drawEmpty("URDF mode requested, but urdf.points is empty");
+          return false;
+        }
+
+        ctx.fillStyle = "#0a1222";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const projectMap = new Map();
+        for (const p of scene.points) {
+          const key = `${p.module}:${p.sensor_index}`;
+          projectMap.set(key, projectWorld(p, scene));
+        }
+
+        const tris = [];
+        for (const [moduleName, moduleMap] of scene.modules.entries()) {
+          for (let r = 0; r < scene.rows - 1; r++) {
+            for (let c = 0; c < scene.cols - 1; c++) {
+              const i00 = r * scene.cols + c;
+              const i01 = r * scene.cols + c + 1;
+              const i10 = (r + 1) * scene.cols + c;
+              const i11 = (r + 1) * scene.cols + c + 1;
+
+              const p00 = moduleMap.get(i00);
+              const p01 = moduleMap.get(i01);
+              const p10 = moduleMap.get(i10);
+              const p11 = moduleMap.get(i11);
+              if (!p00 || !p01 || !p10 || !p11) continue;
+
+              const t1 = [p00, p01, p10];
+              const t2 = [p10, p01, p11];
+              for (const tri of [t1, t2]) {
+                const proj = tri.map((p) => projectMap.get(`${p.module}:${p.sensor_index}`));
+                const depth = (proj[0].z + proj[1].z + proj[2].z) / 3.0;
+                tris.push({ moduleName, proj, depth });
+              }
+            }
+          }
+        }
+
+        tris.sort((a, b) => a.depth - b.depth);
+        for (const tri of tris) {
+          const [a, b, c] = tri.proj;
+          const fill = tri.moduleName === "left" ? "rgba(56,189,248,0.15)" : "rgba(20,184,166,0.15)";
+          ctx.fillStyle = fill;
+          ctx.strokeStyle = "rgba(148,163,184,0.22)";
+          ctx.lineWidth = 1.0;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.lineTo(c.x, c.y);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        const zRange = Math.max(1e-6, Number(payload.meta?.z_force_range) || 14.0);
+        const xyRange = Math.max(1e-6, Number(payload.meta?.xy_force_range) || 0.8);
+        for (const p of scene.points) {
+          const key = `${p.module}:${p.sensor_index}`;
+          const proj = projectMap.get(key);
+          if (!proj) continue;
+
+          const radius = clamp(3.0 * proj.persp, 2.2, 7.6);
+          ctx.beginPath();
+          ctx.fillStyle = forceColor(Number(p.norm) || 0);
+          ctx.strokeStyle = "rgba(6,10,18,0.95)";
+          ctx.lineWidth = 1.0;
+          ctx.arc(proj.x, proj.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          const v = state.vectorEma.get(key) || { fx: Number(p.fx) || 0, fy: Number(p.fy) || 0 };
+          const mag = Math.hypot(v.fx, v.fy);
+          const nxy = mag / xyRange;
+          if (nxy < 0.08) continue;
+
+          const fxDisplay = -v.fx;
+          const fyDisplay = (p.module === "left") ? -v.fy : v.fy;
+          const q = {
+            x: Number(p.x) + (fxDisplay / xyRange) * scene.span * 0.24,
+            y: Number(p.y) + (fyDisplay / xyRange) * scene.span * 0.24,
+            z: Number(p.z) + (Number(p.fz || 0) / zRange) * scene.span * 0.14,
+          };
+          const qProj = projectWorld(q, scene);
+          drawArrow(
+            proj.x,
+            proj.y,
+            qProj.x - proj.x,
+            qProj.y - proj.y,
+            clamp(1.0 * proj.persp, 1.0, 2.2),
+            "rgba(241,245,249,0.88)",
+          );
+        }
+
+        return true;
+      }
+
+      function render() {
+        resizeCanvas();
+        const wantsUrdfView = state.uiMode !== "grid";
+        const activeSource = getActiveUrdfSource();
+
+        if (!state.payload) {
+          if (wantsUrdfView) {
+            bindActiveUrdfSourceToMesh(false);
+            if (!state.urdfMesh.ready && !state.urdfMesh.loading && !state.urdfMesh.failed) {
+              ensureUrdfMeshRuntime().catch(() => {});
+            }
+            if (state.urdfMesh.ready) {
+              const dummyPayload = {
+                fixed_frame: state.urdfMesh.fixedFrame || defaultFixedFrame,
+                urdf: { points: [] },
+                meta: { xy_force_range: 0.8, z_force_range: 14.0 },
+              };
+              runUrdfRenderGuarded(dummyPayload, (okRender) => {
+                if (okRender) {
+                  setUrdf3DVisible(true);
+                  setHintText("URDF mesh is ready. Waiting for /x_taxel_2f/web_state sensor payload.");
+                  setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"} | waiting payload`);
+                } else {
+                  setUrdf3DVisible(false);
+                  drawEmpty("URDF mesh mode waiting for robot_description/tf");
+                  if (state.urdfMesh.failReason) {
+                    setHintText(`URDF mesh pending: ${state.urdfMesh.failReason}`);
+                    setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"} pending (tf)`);
+                  } else {
+                    setHintText(`Waiting for ${activeSource.robotDescriptionTopic} and ${activeSource.tfTopic}.`);
+                    setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"} pending`);
+                  }
+                }
+              });
+            } else {
+              setUrdf3DVisible(false);
+              drawEmpty("Initializing URDF mesh renderer...");
+              if (state.urdfMesh.failed) {
+                setHintText(`URDF mesh init failed: ${state.urdfMesh.failReason || "unknown"}`);
+                setModeInfoText("Sidecar: URDF mesh failed");
+              } else {
+                setHintText("Initializing URDF mesh renderer...");
+                setModeInfoText("Sidecar: URDF init");
+              }
+            }
+          } else {
+            bumpUrdfRenderEpoch();
+            setUrdf3DVisible(false);
+            drawEmpty("Waiting for /x_taxel_2f/web_state ...");
+            setHintText("No payload received yet. Check bridge launch and rosbridge connection.");
+            setModeInfoText("Sidecar: GridMode");
+          }
+          updateModeButtons();
+        } else {
+          const modelLabel = state.modelName ? ` model=${state.modelName}` : "";
+          if (wantsUrdfView) {
+            bindActiveUrdfSourceToMesh(false);
+            if (!state.urdfMesh.robotDescriptionXml) {
+              requestRobotDescriptionViaService(activeSource.name, false);
+            }
+            if (state.urdfMesh.ready) {
+              runUrdfRenderGuarded(state.payload, (okRender) => {
+                if (!okRender) {
+                  const nowMs = performance.now();
+                  if (state.urdf3dVisible) {
+                    if (state.urdfRenderFailSinceMs <= 0.0) {
+                      state.urdfRenderFailSinceMs = nowMs;
+                    }
+                    const failAgeMs = nowMs - state.urdfRenderFailSinceMs;
+                    if (failAgeMs < urdfFailGraceMs) {
+                      setHintText("URDF Mesh 3D: transient TF/render drop, holding last frame.");
+                      return;
+                    }
+                  } else {
+                    state.urdfRenderFailSinceMs = nowMs;
+                  }
+                  setUrdf3DVisible(false);
+                  drawEmpty("URDF mesh mode waiting for robot_description/tf");
+                  if (state.urdfMesh.failReason) {
+                    setHintText(`URDF mesh pending: ${state.urdfMesh.failReason}`);
+                    setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"} pending (tf)${modelLabel}`);
+                  } else {
+                    setHintText(`URDF mesh pending: waiting for ${activeSource.robotDescriptionTopic} and ${activeSource.tfTopic}.`);
+                    setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"} pending${modelLabel}`);
+                  }
+                  return;
+                }
+                state.urdfRenderFailSinceMs = 0.0;
+                setUrdf3DVisible(true);
+                if (state.urdfMesh.tfFallbackActive) {
+                  setHintText("URDF Mesh 3D (local TF root fallback): fixed_frame chain not fully available.");
+                } else {
+                  setHintText(`URDF Mesh 3D: ${activeSource.robotDescriptionTopic} + ${activeSource.tfTopic}`);
+                }
+                setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"}${modelLabel}`);
+              });
+            } else {
+              if (!state.urdfMesh.loading && !state.urdfMesh.failed) {
+                ensureUrdfMeshRuntime().catch(() => {});
+              }
+              setUrdf3DVisible(false);
+              drawEmpty("Initializing URDF mesh renderer...");
+              if (state.urdfMesh.failed) {
+                const reason = state.urdfMesh.failReason || "unknown";
+                setHintText(`URDF mesh init failed: ${reason}`);
+                setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"} failed${modelLabel}`);
+              } else {
+                setHintText("Initializing URDF mesh renderer...");
+                setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"} init${modelLabel}`);
+              }
+            }
+          } else {
+            bumpUrdfRenderEpoch();
+            setUrdf3DVisible(false);
+            drawGrid(state.payload);
+            setHintText("Grid 2D mode.");
+            setModeInfoText(`Sidecar: GridMode${modelLabel}`);
+          }
+        }
+
+        const nowMs = performance.now();
+        const timelineNowMs = getTimelineNowMs(nowMs);
+        if ((nowMs - state.lastStatsPaintMs) >= 120) {
+          const ageMsRaw = state.lastReceivedMs > 0 ? (nowMs - state.lastReceivedMs) : NaN;
+          const ageMs = Number.isFinite(ageMsRaw) ? Math.round(ageMsRaw / 50) * 50 : NaN;
+          const gridCount = state.payload?.grid?.points?.length || 0;
+          const urdfCount = state.payload?.urdf?.points?.length || 0;
+          const modeCount = wantsUrdfView ? `urdf=${urdfCount}` : `grid=${gridCount}`;
+          const grasp = resolveGraspTelemetry(state.payload);
+          const graspEvent = state.payload?.meta?.grasp_event;
+          const graspFz = Number(grasp?.force?.fz);
+          const graspFt = Number(grasp?.force?.ft);
+          const graspDir = Number(grasp?.force?.dir_deg);
+          const graspTotal = Number(grasp?.force?.total);
+          const graspSigma = Number(grasp?.point?.sigma);
+          const graspSparse = Number(Boolean(grasp?.flags?.point_sparse));
+          const graspEventName = typeof graspEvent?.event === "string" ? graspEvent.event : "";
+          const graspEventMode = typeof graspEvent?.mode === "string" ? graspEvent.mode : "";
+          const graspEventReason = typeof graspEvent?.reason === "string" ? graspEvent.reason : "";
+          const graspEventAgeMs = Number(state.payload?.meta?.grasp_event_age_ms);
+          const graspPhase = resolveTelemetryPhase(grasp, graspEvent);
+          sampleTimeline(grasp, timelineNowMs);
+          const newMarker = registerEvent(grasp, graspEvent, timelineNowMs, graspEventAgeMs);
+          drawSparkline(timelineNowMs);
+          updateContactBadge(newMarker, timelineNowMs);
+
+          const fzCurrent = computeGridFzCurrent(state.payload);
+          const nextStatsCurrent =
+            `${Number.isFinite(graspTotal) ? `fz_total=${graspTotal.toFixed(3)}` : ""}` +
+            `${Number.isFinite(fzCurrent.left) ? ` L=${fzCurrent.left.toFixed(3)}` : ""}` +
+            `${Number.isFinite(fzCurrent.right) ? ` R=${fzCurrent.right.toFixed(3)}` : ""}` +
+            `${Number.isFinite(graspSigma) ? ` sigma_peak=${graspSigma.toFixed(2)}` : ""}` +
+            `${graspPhase ? ` phase=${graspPhase}` : ""}`;
+          if (nextStatsCurrent !== lastStatsCurrentText) {
+            const trimmedCurrent = nextStatsCurrent.trim();
+            statsCurrent.textContent = trimmedCurrent;
+            statsCurrent.title = trimmedCurrent;
+            lastStatsCurrentText = nextStatsCurrent;
+          }
+          const nextStats = Number.isFinite(ageMs)
+            ? `age=${ageMs.toFixed(0)}ms ${modeCount} ui=${state.uiMode} src=${activeSource.name}` +
+              `${Number.isFinite(graspFz) ? ` fz=${graspFz.toFixed(3)}` : ""}` +
+              `${Number.isFinite(graspFt) ? ` ft=${graspFt.toFixed(3)}` : ""}` +
+              `${Number.isFinite(graspDir) ? ` dir=${graspDir.toFixed(1)}deg` : ""}` +
+              `${Number.isFinite(graspSigma) ? ` point_sigma=${graspSigma.toFixed(2)}` : ""}` +
+              `${grasp ? ` point_sparse=${Math.round(graspSparse)}` : ""}` +
+              `${graspPhase ? ` phase=${graspPhase}` : ""}` +
+              `${graspEventName ? ` evt=${graspEventName}` : ""}` +
+              `${graspEventMode ? ` mode=${graspEventMode}` : ""}` +
+              `${graspEventReason ? ` reason=${graspEventReason}` : ""}`
+            : `${modeCount} ui=${state.uiMode} src=${activeSource.name}` +
+              `${Number.isFinite(graspFz) ? ` fz=${graspFz.toFixed(3)}` : ""}` +
+              `${Number.isFinite(graspFt) ? ` ft=${graspFt.toFixed(3)}` : ""}` +
+              `${Number.isFinite(graspDir) ? ` dir=${graspDir.toFixed(1)}deg` : ""}` +
+              `${Number.isFinite(graspSigma) ? ` point_sigma=${graspSigma.toFixed(2)}` : ""}` +
+              `${grasp ? ` point_sparse=${Math.round(graspSparse)}` : ""}` +
+              `${graspPhase ? ` phase=${graspPhase}` : ""}` +
+              `${graspEventName ? ` evt=${graspEventName}` : ""}` +
+              `${graspEventMode ? ` mode=${graspEventMode}` : ""}` +
+              `${graspEventReason ? ` reason=${graspEventReason}` : ""}`;
+          if (nextStats !== state.lastStatsText) {
+            statsText.textContent = nextStats;
+            statsText.title = nextStats;
+            state.lastStatsText = nextStats;
+          }
+          state.lastStatsPaintMs = nowMs;
+        }
+
+        requestAnimationFrame(render);
+      }
+
+      function resetUrdfCamera() {
+        state.camera.yaw = 0.0;
+        state.camera.pitch = 0.0;
+        state.camera.zoom = 1.35;
+        state.camera.panX = 0.0;
+        state.camera.panY = 0.0;
+      }
+
+      reconnectBtn.addEventListener("click", () => {
+        connect();
+      });
+      gridBtn.addEventListener("click", () => setUiMode("grid"));
+      xelaBtn.addEventListener("click", () => setUiMode("xela"));
+      robotBtn.addEventListener("click", () => setUiMode("robot"));
+      followBtn?.addEventListener("click", () => {
+        if (state.uiMode !== "robot") {
+          return;
+        }
+        setFollowCamEnabled(!followCamState.enabled);
+      });
+      analysisBtn.addEventListener("click", () => setAnalysisVisible(!analysisState.visible));
+      win10Btn.addEventListener("click", () => setTimelineWindowMs(10000));
+      win30Btn.addEventListener("click", () => setTimelineWindowMs(30000));
+      win60Btn.addEventListener("click", () => setTimelineWindowMs(60000));
+      pauseBtn?.addEventListener("click", () => setTimelinePaused(!timelineState.paused, performance.now()));
+      sparkline?.addEventListener("mousemove", (ev) => {
+        const rect = sparkline.getBoundingClientRect();
+        hoverState.inside = true;
+        hoverState.x = ev.clientX - rect.left;
+        hoverState.y = ev.clientY - rect.top;
+        hoverState.clientX = ev.clientX;
+        hoverState.clientY = ev.clientY;
+        updateEventTooltip(performance.now());
+      });
+      sparkline?.addEventListener("mouseleave", () => {
+        hoverState.inside = false;
+        hoverState.clientX = 0;
+        hoverState.clientY = 0;
+        setEventTooltipVisible(false);
+      });
+
+      canvas.addEventListener("contextmenu", (ev) => ev.preventDefault());
+      canvas.addEventListener("pointerdown", (ev) => {
+        if (state.uiMode === "grid") return;
+        state.drag = {
+          id: ev.pointerId,
+          x: ev.clientX,
+          y: ev.clientY,
+          yaw: state.camera.yaw,
+          pitch: state.camera.pitch,
+          panX: state.camera.panX,
+          panY: state.camera.panY,
+          panMode: ev.shiftKey || ev.button === 2,
+        };
+        canvas.setPointerCapture(ev.pointerId);
+      });
+      canvas.addEventListener("pointermove", (ev) => {
+        if (!state.drag || state.drag.id !== ev.pointerId || state.uiMode === "grid") return;
+        const dx = ev.clientX - state.drag.x;
+        const dy = ev.clientY - state.drag.y;
+        if (state.drag.panMode) {
+          const k = (state.lastSceneExtent * 0.0022) / Math.max(0.25, state.camera.zoom);
+          state.camera.panX = state.drag.panX + dx * k;
+          state.camera.panY = state.drag.panY - dy * k;
+          return;
+        }
+        state.camera.yaw = state.drag.yaw + dx * 0.008;
+        state.camera.pitch = clamp(state.drag.pitch + dy * 0.006, -1.45, 1.45);
+      });
+      canvas.addEventListener("pointerup", (ev) => {
+        if (state.drag && state.drag.id === ev.pointerId) {
+          state.drag = null;
+          canvas.releasePointerCapture(ev.pointerId);
+        }
+      });
+      canvas.addEventListener("pointercancel", () => {
+        state.drag = null;
+      });
+      canvas.addEventListener("wheel", (ev) => {
+        if (state.uiMode === "grid") return;
+        ev.preventDefault();
+        const k = Math.exp(-ev.deltaY * 0.0012);
+        state.camera.zoom = clamp(state.camera.zoom * k, 0.4, 3.6);
+      }, { passive: false });
+      canvas.addEventListener("dblclick", () => {
+        if (state.uiMode === "grid") return;
+        resetUrdfCamera();
+      });
+
+      window.addEventListener("resize", resizeCanvas);
+      window.addEventListener("resize", resizeUrdfMeshRenderer);
+      connect();
+      render();
+
+      setStatus("Connecting...", false);
+      statusLine.title =
+        `topic=${topic} xela_desc=${xelaRobotDescriptionTopic} xela_tf=${xelaTfTopic} ` +
+        `robot_desc=${robotRobotDescriptionTopic} robot_tf=${robotTfTopic} ws_candidates=${wsCandidates.join(",")}`;
+    })();
+  </script>
+</body>
+</html>

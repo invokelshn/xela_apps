@@ -1,102 +1,123 @@
 # Functional Specification Document (FSD) - xela_taxel_viz_2f
 
-## 1. Overview
-`xela_taxel_viz_2f` visualizes tactile data from `/x_taxel_2f`
-(`xela_taxel_msgs/XTaxelSensorTArray`) in RViz2.
-It supports two modes:
-- **Grid mode**: two 4x6 grids (left/right modules).
-- **URDF mode**: markers attached to taxel frames from URDF.
+## 1. Purpose
+`xela_taxel_viz_2f` visualizes tactile data from `/x_taxel_2f` for 2F-gripper class sensors.
+It publishes marker arrays for RViz/Web visualization in either `grid` or `urdf` mode.
 
-## 2. Goals
-- Provide intuitive visualization of tactile force magnitude and direction.
-- Support baseline/zeroing to stabilize readings.
-- Offer runtime configuration via ROS parameters and launch arguments.
+## 2. Scope
+- In scope:
+  - Marker generation from `xela_taxel_msgs/msg/XTaxelSensorTArray`
+  - Dual-module grid rendering
+  - URDF-frame marker rendering
+  - Baseline/zeroing and scaling pipeline
+  - Runtime mode switching through ROS service
+- Out of scope:
+  - Sensor acquisition (`xela_server*`)
+  - Taxel frame mapping policy source (`xela_server2_2f` config)
 
-## 3. Inputs
+## 3. Interfaces
+### 3.1 Input
 - Topic: `/x_taxel_2f`
-  - Message: `xela_taxel_msgs/XTaxelSensorTArray`
-  - Fields used:
-    - `x_modules[].forces[]` (x, y, z)
-    - `x_modules[].taxels[]` (baseline only)
-    - `x_modules[].frame_ids[]` (URDF mode)
+- Type: `xela_taxel_msgs/msg/XTaxelSensorTArray`
+- Required fields per module:
+  - `forces[]` (primary)
+  - `taxels[]` (fallback when configured)
+  - `frame_ids[]` (URDF mode)
 
-## 4. Outputs
-- Topic: `/x_taxel_2f/markers`
-  - Message: `visualization_msgs/MarkerArray`
-  - Marker types: grid tiles, circles, arrows.
+### 3.2 Output
+- Topic: `/x_taxel_2f/markers` (default, configurable)
+- Type: `visualization_msgs/msg/MarkerArray`
+- Optional mirror topic: `legacy_out_topic`.
 
-## 5. Functional Requirements
-### FR-1: Visualization modes
-- The node shall support `viz_mode=grid` and `viz_mode=urdf`.
-- Grid mode shall render two 4x6 grids side-by-side.
-- URDF mode shall attach markers to per-taxel frames.
+### 3.3 Service
+- Service: `/xela_taxel_viz_2f/set_mode`
+- Type: `std_srvs/srv/SetBool`
+- Semantics:
+  - `false`: switch to `grid`
+  - `true`: switch to `urdf`
+- Expected behavior:
+  - publish `DELETEALL`
+  - switch mode in-process without restart
 
-### FR-2: Force magnitude mapping
-- The node shall map force magnitude to circle size and color.
-- The node shall map force direction to arrow orientation and length.
-- Z-axis negative values shall be clamped to 0 for normalization.
+## 4. Functional Requirements
+### FR-1 Mode support
+- The node shall support `viz_mode` values `grid` and `urdf`.
+- Invalid `viz_mode` shall fall back to `grid`.
 
-### FR-3: Baseline handling
-- The node shall compute a per-taxel baseline for a configurable duration after start.
-- During baseline collection, the output magnitude shall be zero.
-- Baseline shall be applied to `forces` and `taxels`.
+### FR-2 Grid rendering
+- The node shall render two module grids (left/right) with configurable size and spacing.
+- Grid cell placement shall support right-module row/column flips.
+- Grid index remapping shall support per-module index maps.
 
-### FR-4: Grid mapping
-- Grid indexing shall be row-major (left→right, top→bottom).
-- Right module grid mapping shall be configurable via row/column flips.
+### FR-3 URDF rendering
+- The node shall render markers in per-taxel frames from `frame_ids[]`.
+- If frame id ends with `_joint`, the node shall use corresponding `_link` frame.
 
-### FR-5: URDF mapping
-- URDF mode shall use `frame_ids[]` order as-is (no index remap).
-- If a `frame_id` ends with `_joint`, the node shall use the corresponding `_link`.
-- Direction signs shall be configurable per module in URDF mode.
+### FR-4 Magnitude and direction mapping
+- The node shall compute marker magnitude from force/taxel vectors.
+- The node shall support axis-normalized magnitude mode and raw magnitude mode.
+- The node shall support XY directional arrows and optional Z-direction arrows.
 
-### FR-6: Launch behavior
-- URDF mode shall launch `robot_state_publisher`, `ros2_control_node`,
-  and `xela_taxel_joint_state_publisher` via spawner.
-- Grid overlay in URDF mode shall be optional.
+### FR-5 Baseline and deadband
+- The node shall collect baseline for configured duration.
+- Before baseline completion, output shall be suppressed to zero-equivalent values.
+- Deadband shall be applied independently for XY and Z.
 
-## 6. Non-Functional Requirements
-- Must be configurable via YAML and launch arguments.
-- Must run with ROS 2 Humble.
-- Marker updates shall be stable (consistent IDs to avoid flicker).
+### FR-6 Taxel fallback
+- If `forces[]` is empty and `use_taxels_when_no_forces=true`, visualization shall use `taxels[]`.
+- Separate range parameters shall be used for taxel fallback normalization.
 
-## 7. Configuration
-Key parameters (see `config/xela_taxel_viz_2f.yaml`):
-- Topics: `in_topic`, `out_topic`, `frame_id`
-- Modes: `viz_mode`, `overlay_grid_in_urdf`
-- Grid layout: `grid_rows`, `grid_cols`, `cell_size`, `module_gap`
-- Grid flips: `row_flip_right`, `col_flip_right`
-- Baseline: `baseline_duration_sec`
-- Normalization: `use_axis_normalization`, `xy_force_range`, `z_force_range`
-- Style: `circle_*`, `arrow_*`, `grid_*`, `color_*`
-- Direction signs (grid): `left_force_*`, `right_force_*`
-- Direction signs (URDF): `urdf_left_force_*`, `urdf_right_force_*`
+### FR-7 Runtime mode switching
+- The node shall accept mode change through `/xela_taxel_viz_2f/set_mode`.
+- Mode switching shall not require process restart.
 
-## 8. Dependencies
-- `xela_taxel_msgs`
-- `visualization_msgs`
-- `robot_state_publisher`
-- `controller_manager` (ros2_control)
-- `xela_taxel_joint_state_publisher`
+### FR-8 Output compatibility
+- Node shall publish to `out_topic`.
+- If `legacy_out_topic` is configured and differs from `out_topic`, node shall publish identical marker arrays to both.
 
-## 9. Constraints & Assumptions
-- Two modules are expected (left/right).
-- Grid size is assumed to be 4x6 (24 taxels) unless configured otherwise.
-- URDF frame IDs must match `x_modules[].frame_ids[]`.
+## 5. Non-Functional Requirements
+- ROS 2 Humble compatibility.
+- Stable marker IDs to minimize flicker.
+- Configurable durability (`transient_local` or `volatile`).
+- Optional publish-rate limiting via `max_publish_rate_hz`.
 
-## 10. Acceptance Criteria
-- Grid mode:
-  - Two 4x6 grids rendered with correct left/right mapping.
-  - Circle size/color and arrow direction follow force data.
-- URDF mode:
-  - URDF loads and taxel frames are visible in RViz2.
-  - Markers attach to correct taxel frames.
-  - Direction sign corrections per module behave as configured.
-- Baseline:
-  - Initial 1–2 seconds show near-zero output.
-  - After baseline, changes respond to touch.
+## 6. Launch Behavior Requirements
+### LR-1 Base launch
+`xela_taxel_viz_2f.launch.py` shall:
+- always start `xela_taxel_viz_2f_node`
+- in `urdf` mode additionally start:
+  - `robot_state_publisher`
+  - `ros2_control_node`
+  - `controller_manager spawner xela_taxel_joint_state_publisher`
 
-## 11. Test/Validation Outline
-- Replay recorded `/x_taxel_2f` and verify marker positions and directions.
-- Confirm baseline behavior by observing first 1–2 seconds after start.
-- Verify URDF mode launches all required nodes and TFs resolve.
+### LR-2 Real integration launch
+`real_all_svc_xela_taxel_viz_2f.launch.py` shall include:
+- server bringup (`xela_server2_2f_with_server.launch.py`)
+- visualizer launch include
+- RViz with mode-based default config
+
+### LR-3 Sim integration launch
+`sim_all_svc_xela_taxel_viz_2f.launch.py` shall include:
+- replayer bringup (`xela_server2_2f_with_replayer.launch.py`)
+- visualizer launch include
+- RViz with mode-based default config
+
+## 7. Constraints and Assumptions
+- System assumes two tactile modules (left/right).
+- Default geometry assumes 4x6 cells per module.
+- URDF mode requires valid TF for the frame IDs carried in message.
+
+## 8. Acceptance Criteria
+- AC-1 Grid mode renders two module grids and responds to force changes.
+- AC-2 URDF mode attaches markers to taxel frames without remapping errors.
+- AC-3 Service mode switching changes visualization mode without node restart.
+- AC-4 Fallback to taxel data works when force vector array is absent.
+- AC-5 Marker output is available on configured output topic(s).
+
+## 9. Verification Checklist
+```bash
+ros2 topic echo /x_taxel_2f --once
+ros2 topic echo /x_taxel_2f/markers --once
+ros2 service call /xela_taxel_viz_2f/set_mode std_srvs/srv/SetBool "{data: true}"
+ros2 service call /xela_taxel_viz_2f/set_mode std_srvs/srv/SetBool "{data: false}"
+```

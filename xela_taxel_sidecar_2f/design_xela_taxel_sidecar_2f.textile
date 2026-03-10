@@ -1,0 +1,182 @@
+h1. Design - xela_taxel_sidecar_2f
+
+h2. 1. Overview and design objective
+
+The 2F sidecar is designed as a non-invasive visualization adapter: it does not alter upstream tactile publishers or downstream control logic.
+
+Design intent:
+
+* transform ROS tactile payloads into browser-consumable state with low integration cost
+* expose runtime mode switching as a stable ROS service contract
+* support both global and namespaced TF transport models through launch remapping
+
+This keeps web visualization evolvable independently of control-stack release cycles.
+
+h2. 2. Node architecture
+
+h3. 2.1 Bridge node (@xela_taxel_web_bridge_node@)
+
+* subscribes tactile array topic
+* optionally subscribes grasp telemetry/event topics and embeds recent JSON metadata
+* normalizes/maps values
+* publishes compact JSON payload
+* optional TF lookups for URDF points
+
+h3. 2.2 Mode manager (@xela_viz_mode_manager_node@)
+
+* service facade: @/xela_viz_mode_manager/set_mode@
+* writes bridge params: @viz_mode@, @emit_urdf_points@, @freeze_urdf_positions@
+* forwards request to viz node service
+* startup sync retry timer
+
+h3. 2.3 Web transport
+
+* static HTTP server for @web/taxel_sidecar@
+* optional dedicated rosbridge instance
+* browser websocket fallback order: @:9090@, @:3201@, @/ros@
+
+h3. 2.4 Web UI runtime
+
+* browser-side display modes are @GridMode@, @XelaModel@, and @RobotModel@
+* @GridMode/XelaModel/RobotModel@ are distinct from ROS-side @grid/urdf@
+* RobotModel includes optional FollowCam logic and telemetry analysis rendering
+* FollowCam / Analysis toolbar exposure can be toggled independently from the underlying code paths
+
+h4. 2.4.1 FollowCam detailed design
+
+* Scope:
+** available only in @RobotModel@
+** client-side camera controller only; does not change ROS-side viz mode
+* Activation:
+** toggled by the @FollowCam@ toolbar button
+** enabling resets filtered state and performs a one-shot snap to the first resolved camera goal
+** disabling returns RobotModel to normal fixed orbit framing
+* Frame resolution policy:
+** anchor priority: @grasp_link -> robotiq_base_link -> tool0 -> base_link@
+** left tip priority: @left_inner_finger -> left_outer_finger -> left_inner_finger_pad -> x_base_01_uSPr2F_link@
+** right tip priority: @right_inner_finger -> right_outer_finger -> right_inner_finger_pad -> x_base_02_uSPr2F_link@
+** if tip frames are missing, the camera falls back to an anchor-forward estimate
+* Camera placement policy:
+** target base is the midpoint of left/right tip frames when both are available
+** direction is reconstructed from fingertip geometry (@tip span x finger axis@) and protected against hemisphere flips
+** camera goal = @targetBase + forward * forwardDistance + worldUp * heightOffset@
+** look target = @targetBase - forward * lookAhead + worldUp * lookUp@
+* Motion policy:
+** filtered anchor position, filtered target base, and filtered forward vector
+** lerp smoothing plus per-frame max step limits
+** one-shot TF jump rejection with later re-sync
+* Manual override policy:
+** manual orbit pauses follow for @3s@
+** automatic follow resumes after the pause window expires
+* Diagnostics:
+** @followDebug@ shows resolved anchor/tip frames, source branch, raw vector, filtered vector, and sign
+** debug output is throttled to reduce DOM churn
+
+h4. 2.4.2 Analysis detailed design
+
+* Scope:
+** client-side analysis panel for tactile/grasp telemetry inspection
+** independent of ROS-side @grid/urdf@ mode
+* UI surface:
+** controlled by the @Analysis@ toolbar button
+** shows/hides @statsRow@ (summary text, current-value strip, contact badge, sparkline, event tooltip)
+* Data sources:
+** current sidecar payload from @/x_taxel_2f/web_state@
+** reads @meta.grasp@, @meta.grasp_event@, and derived current force values
+* Timeline model:
+** rolling window presets: @10s@, @30s@, @60s@
+** pause/resume support without dropping existing history
+** discrete event markers stored separately from continuous samples
+* Render policy:
+** recomputes summary text (@age@, mode, force/sigma/phase/event fields)
+** draws sparkline history
+** overlays event markers and hover tooltip inspection
+** updates the contact badge on sparse/broad/slip-related event conditions
+* Intended use:
+** operator/debug visibility for grasp phase changes
+** quick inspection of force trends, event timing, and slip/contact transitions
+** complements, but does not replace, external logging or ROS topic introspection
+
+Analysis panel display items:
+
+* @statsText@: top-level summary line showing age, active UI mode, source, force/sigma/phase/event fields
+* @statsCurrent@: current-value strip for @fz_total@, left/right force, sigma peak, and phase
+* @contactBadge@: short-lived badge for sparse, broad, or slip-related contact conditions
+* @sparkline@: rolling history visualization over the selected window
+* event markers: discrete @meta.grasp_event@ points overlaid on the timeline
+* event tooltip: detailed event inspection on mouse hover
+* window buttons (@10s@, @30s@, @60s@): change the retained/rendered history window
+* @Pause@: freezes timeline advancement without discarding collected samples
+
+FollowCam tuning contract:
+
+* @follow_cam_forward_distance@: forward camera offset from the resolved fingertip target (current built-in baseline: @-0.2@)
+* @follow_cam_height_offset@: height offset above the target in world Z (current built-in baseline: @0.1@)
+* @follow_cam_look_ahead@: backward look offset toward the sensor area (current built-in baseline: @0.028@)
+* @follow_cam_forward_sign@: hemisphere flip for the resolved forward vector (current built-in baseline: @-1.0@)
+* There is no separate @follow_cam_profile@ selector in the current implementation; the effective preset is the combination of these @follow_cam_*@ query values.
+
+h3. 2.5 Runtime wiring diagram
+
+Generated PNG: @docs/runtime_wiring_diagram.png@
+
+<pre>
+Browser (index.html + rosbridge_client.js)
+  |-- HTTP GET / ----------------------------> sidecar_http_server.py (:8765)
+  |
+  |-- WebSocket ws://&lt;host&gt;:9090 -----------> rosbridge_websocket_sidecar
+  |                                            (rosbridge_server/rosbridge_websocket)
+  |                                              |
+  |                                              |-- subscribe / publish --> /x_taxel_2f/web_state
+  |                                              |-- service call ---------> /xela_viz_mode_manager/set_mode
+  |                                              |-- optional access ------> /tf, /tf_static, /robot_description
+  |                                                                      or namespaced std-viz equivalents
+  |
+  `-- sidecar UI renders GridMode / XelaModel / RobotModel
+
+/x_taxel_2f ----------------------------------> xela_taxel_web_bridge_cpp
+/x_telemetry_2f/grasp_telemetry --------------> xela_taxel_web_bridge_cpp
+/x_telemetry_2f/grasp_event ------------------> xela_taxel_web_bridge_cpp
+/tf, /tf_static (or namespaced TF) -----------> xela_taxel_web_bridge_cpp
+xela_taxel_web_bridge_cpp --------------------> /x_taxel_2f/web_state
+
+/xela_viz_mode_manager/set_mode --------------> xela_viz_mode_manager_cpp
+xela_viz_mode_manager_cpp -- set_parameters --> xela_taxel_web_bridge_cpp
+xela_viz_mode_manager_cpp -- SetBool -------> /xela_taxel_viz_2f/set_mode
+                                           or /xviz2f/std_xela_taxel_viz_2f/set_mode
+</pre>
+
+Notes:
+
+* The browser uses two separate paths: HTTP for static assets and WebSocket for ROS traffic.
+* @rosbridge_client.js@ tries @:9090@ first; @:3201@ and @/ros@ are fallbacks.
+* @xela_viz_mode_manager_cpp@ is the ROS-facing mode-switch facade.
+
+h2. 3. Launch architecture
+
+* primary: @xela_taxel_sidecar_cpp.launch.py@
+* compatibility: @xela_taxel_sidecar.launch.py@
+* primary launch exposes bind hosts for the static web server and sidecar rosbridge (default @0.0.0.0@)
+
+h2. 4. Integration strategy
+
+* default target: @viz_node_name=/xela_taxel_viz_2f@
+* std-viz namespaced target via overrides:
+** @viz_node_name:=/xviz2f/std_xela_taxel_viz_2f@
+** @bridge_tf_topic:=/xviz2f/tf@
+** @bridge_tf_static_topic:=/xviz2f/tf_static@
+
+h2. 5. Design risks
+
+* target viz service unavailable
+* TF remap mismatch in URDF mode
+* duplicate transport nodes from multiple launch variants
+
+h2. 6. Validation
+
+* launch smoke test
+* topic publish-rate observation
+* service toggle test
+* web render check on sidecar URL
+* browser websocket fallback check (@9090 -> 3201 -> /ros@)
+* verify URL query defaults are used when no @follow_cam_*@ overrides are present

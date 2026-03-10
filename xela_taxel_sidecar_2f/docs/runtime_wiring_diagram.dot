@@ -1,0 +1,32 @@
+digraph RuntimeWiring {
+  rankdir=LR;
+  graph [fontname="Helvetica", bgcolor="white", splines=true, ranksep="0.9", nodesep="0.5", pad="0.2"];
+  node [shape=box, style="rounded,filled", color="#4b5563", fontname="Helvetica", fontsize=10, penwidth=1.0];
+  edge [color="#475569", fontname="Helvetica", fontsize=9, penwidth=1.0];
+
+  Browser   [label="Browser\nindex.html + rosbridge_client.js", fillcolor="#dcfce7"];
+  Http      [label="sidecar_http_server.py\nHTTP :8765", fillcolor="#e0f2fe"];
+  Rosbridge [label="rosbridge_websocket_sidecar\nrosbridge_server/rosbridge_websocket\nWS :9090", fillcolor="#e0f2fe"];
+  Bridge    [label="xela_taxel_web_bridge_cpp", fillcolor="#fef3c7"];
+  Manager   [label="xela_viz_mode_manager_cpp", fillcolor="#fef3c7"];
+  Viz       [label="Target viz node\n/xela_taxel_viz_2f\nor\n/xviz2f/std_xela_taxel_viz_2f", fillcolor="#ede9fe"];
+  Taxel     [label="/x_taxel_2f", fillcolor="#f8fafc"];
+  Telemetry [label="/x_telemetry_2f/grasp_telemetry\n/x_telemetry_2f/grasp_event", fillcolor="#f8fafc"];
+  Tf        [label="TF + robot_description sources\n/tf, /tf_static, /robot_description\nor namespaced std-viz equivalents", fillcolor="#f8fafc"];
+  WebState  [label="/x_taxel_2f/web_state", fillcolor="#fde68a"];
+
+  Browser -> Http      [label="GET /"];
+  Browser -> Rosbridge [label="WebSocket\nws://<host>:9090"];
+
+  Taxel     -> Bridge;
+  Telemetry -> Bridge;
+  Tf        -> Bridge [label="optional TF / model lookups"];
+  Bridge    -> WebState;
+
+  Rosbridge -> WebState [label="subscribe / publish"];
+  Rosbridge -> Manager  [label="service call"];
+  Rosbridge -> Tf       [label="topic / service access"];
+
+  Manager -> Bridge [label="set_parameters"];
+  Manager -> Viz    [label="SetBool ~/set_mode"];
+}

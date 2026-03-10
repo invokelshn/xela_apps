@@ -1,0 +1,12 @@
+output_topic: joint_states
+publish_rate: 30.0
+preserve_input_order: true
+source_list: []
+
+device_profiles:
+  uSCuAH_left:
+    keep_joints_files:
+      - uscuahl_joint.yaml
+  uSCuAH_right:
+    keep_joints_files:
+      - uscuahr_joint.yaml

@@ -1,148 +1,122 @@
 # xela_taxel_viz_2f Design
 
-## Goals
-- Visualize `/x_taxel_2f` (`xela_taxel_msgs/XTaxelSensorTArray`) in RViz2 as two 4x6 grids.
-- Use a fixed background grid; encode force magnitude with circle size and color.
-- Encode force direction with arrows whose length scales with the same magnitude.
-- Apply right-module 180-degree rotation mapping (row + column flip) in grid mode (configurable).
+## 1. Design Goals
+- Provide low-latency tactile visualization for 2F models.
+- Keep one node supporting both `grid` and `urdf` rendering paths.
+- Support runtime mode change without process restart.
+- Keep marker IDs stable to reduce flicker in RViz/web clients.
 
-## Scope
-- 2D grid visualization and optional URDF-based visualization using taxel frame IDs.
-- Optional grid overlay in URDF mode.
-- Designed for ROBOTIQ 2F-140 fingertip taxels.
+## 2. Runtime Architecture
+Single ROS 2 node:
+- Node: `xela_taxel_viz_2f`
+- Subscribe: `xela_taxel_msgs/msg/XTaxelSensorTArray`
+- Publish: `visualization_msgs/msg/MarkerArray`
+- Service server: `std_srvs/srv/SetBool` (`/xela_taxel_viz_2f/set_mode`)
 
-## Inputs
-- Topic: `/x_taxel_2f`
-- Message: `xela_taxel_msgs/XTaxelSensorTArray`
-  - `x_modules[i].forces[j]` provides force vector (x, y, z).
-  - `x_modules[i].frame_ids` can be used for debug labels.
-- In URDF mode, `frame_ids` drive per-taxel marker frames.
-  - If a frame_id ends with `_joint`, it is converted to the corresponding `_link`.
+Launch-side composition:
+- `xela_taxel_viz_2f.launch.py`
+  - always starts visualizer node
+  - starts taxel URDF stack only when `viz_mode=urdf`
+- `real_all_svc_xela_taxel_viz_2f.launch.py`
+  - server + visualizer + RViz
+- `sim_all_svc_xela_taxel_viz_2f.launch.py`
+  - replayer + visualizer + RViz
 
-## Outputs
-- Topic: `/x_taxel_2f/markers`
-- Message: `visualization_msgs/MarkerArray`
+## 3. Data Pipeline
+1. Receive `/x_taxel_2f` message.
+2. Resolve timestamp according to `marker_stamp_mode` and `marker_time_offset_sec`.
+3. Update/lock baseline state per module.
+4. If rate limiting enabled, skip publish when period not elapsed.
+5. Build marker array:
+   - optional grid background (grid mode or URDF overlay)
+   - module circles + arrows in selected mode
+6. Publish to `out_topic` and optional `legacy_out_topic`.
 
-## Visualization Style
-- Grid cell background: fixed color (no per-cell color).
-- Optional faint grid lines between cells.
-- Per-taxel circle: size and color reflect force magnitude.
-- Per-taxel arrow: direction reflects force vector; length matches magnitude scale.
-- URDF mode places circles/arrows at the taxel frame origin.
+## 4. Mode Paths
+### 4.1 Grid Mode
+- Uses synthetic frame (`frame_id`, default `x_taxel_viz`).
+- Computes cell center positions from:
+  - `grid_rows`, `grid_cols`, `cell_size`, `module_gap`, `origin_*`
+- Supports mapping control:
+  - `row_flip_right`, `col_flip_right`
+  - `grid_index_map_left/right`
+  - `grid_separator_cols_left/right`
 
-## Grid Layout
-- Rows: 4, Cols: 6
-- Indexing (left module): row-major, left-to-right, top-to-bottom
-  - Row 1: 1..6
-  - Row 2: 7..12
-  - Row 3: 13..18
-  - Row 4: 19..24
+### 4.2 URDF Mode
+- Uses per-taxel frame IDs from message (`x_modules[].frame_ids[]`).
+- `_joint` suffix is converted to `_link` for marker frame resolution.
+- Marker pose is local origin of each frame.
+- Optional grid overlay controlled by `overlay_grid_in_urdf`.
 
-### Left/Right Module Mapping
-- Grid mode:
-  - Left module uses base grid mapping.
-  - Right module uses 180-degree rotation (row + column flip):
-  - `rowR = (rows - 1) - rowL`
-  - `colR = (cols - 1) - colL`
-- Example mapping:
-  - L1 -> R24, L2 -> R23, ... L6 -> R19
-  - L7 -> R18, L8 -> R17, ... L12 -> R13
-  - L13 -> R12, L14 -> R11, ... L18 -> R7
-  - L19 -> R6, L20 -> R5, ... L24 -> R1
-- URDF mode:
-  - No index remapping; `x_modules[].frame_ids[]` order is used as-is.
+## 5. Runtime Mode Switch Service
+Service: `/xela_taxel_viz_2f/set_mode` (`SetBool`)
+- `false` -> `grid`
+- `true` -> `urdf`
 
-## Force Mapping
-- Magnitude: `|F| = sqrt(Fx^2 + Fy^2 + Fz^2)` (default)
-- Axis-normalized magnitude (recommended for sensitivity ranges):
-  - `nx = Fx / xy_force_range`, `ny = Fy / xy_force_range`
-  - `nz = max(Fz, 0) / z_force_range`
-  - `normalized = clamp(sqrt(nx^2 + ny^2 + nz^2), 0..1)`
-- Direction:
-  - Arrow direction uses `(Fx, Fy)` projected onto the grid plane.
-  - If `(Fx, Fy)` is near zero, arrow length becomes zero (or skip arrow).
-- Scale reference: 0.1 gf = `0.000980665 N`
+Implementation behavior:
+- If requested mode equals current mode: return success/no-op message.
+- Else:
+  - publish `DELETEALL`
+  - update internal `viz_mode_`
+  - continue processing next messages in new mode
 
-## Baseline (Zero-Point) Handling
-- After node start, collect 1-2 seconds of samples per taxel.
-- Compute baseline for both `forces` and `taxels`.
-- Visualization uses `current - baseline` for forces.
-- While baseline is collecting, render zero magnitude.
+This avoids external relaunch-based switching and reduces transition latency.
 
-## Node Architecture
-- Node name: `xela_taxel_viz_2f`
-- Subscribes to `/x_taxel_2f`
-- Publishes `/x_taxel_2f/markers`
-- Marker types:
-  - Grid tiles: `CUBE`
-  - Circles: `CYLINDER` or `SPHERE`
-  - Arrows: `ARROW`
-  - Optional grid overlay in URDF mode
+## 6. Magnitude, Direction, and Baseline
+### 6.1 Source selection
+- Default uses `forces[]`.
+- If `forces[]` is empty and `use_taxels_when_no_forces=true`, use `taxels[]`.
 
-### Marker ID Scheme
-Use stable IDs to avoid flicker:
-- `module_offset = module_index * 1000`
-- `grid_id = module_offset + 0 + idx`
-- `circle_id = module_offset + 100 + idx`
-- `arrow_id = module_offset + 200 + idx`
+### 6.2 Baseline
+- Baseline is collected per module for `baseline_duration_sec`.
+- Separate baseline buffers for forces and taxels.
+- Before baseline ready, output is effectively suppressed.
 
-### Update Strategy
-- Grid tiles are static; publish once at startup and republish if parameters change.
-- Circles and arrows update on each incoming message.
+### 6.3 Normalization
+Two modes:
+- axis-normalized (`use_axis_normalization=true`)
+- raw magnitude with `max_force` clamp
 
-## Parameters (draft defaults)
-- `frame_id`: `x_taxel_viz`
-- `viz_mode`: `grid` | `urdf`
-- `overlay_grid_in_urdf`: `false`
-- `grid_rows`: `4`
-- `grid_cols`: `6`
-- `cell_size`: `0.015`
-- `module_gap`: `0.04`
-- `left_module_index`: `0`
-- `right_module_index`: `1`
-- `row_flip_right`: `true`
-- `col_flip_right`: `true`
-- `baseline_duration_sec`: `2.0`
-- `use_axis_normalization`: `true`
-- `xy_force_range`: `0.8`
-- `z_force_range`: `14.0`
-- `max_force`: `0.02`          # clamp
-- `use_cell_scale`: `true`
-- `circle_area_scale`: `2.0`   # max circle area = cell area * scale
-- `arrow_length_scale`: `2.0`  # max arrow length = cell_size * scale
-- `use_fz_only`: `false`        # if true, use |Fz| for magnitude
-- `use_xy_direction`: `true`
-- `grid_color`: `#e8e3dc`
-- `grid_lines_enabled`: `true`
-- `grid_line_width`: `0.001`
-- `grid_line_alpha`: `0.2`
-- `grid_line_color`: `[0.2, 0.2, 0.2]`
-- `circle_colormap`: `blue_to_red`
-- `left_force_x_sign`: `1.0`
-- `left_force_y_sign`: `-1.0`
-- `right_force_x_sign`: `-1.0`
-- `right_force_y_sign`: `1.0`
-- `urdf_left_force_x_sign`: `-1.0`
-- `urdf_left_force_y_sign`: `1.0`
-- `urdf_right_force_x_sign`: `-1.0`
-- `urdf_right_force_y_sign`: `1.0`
+Ranges:
+- force mode: `xy_force_range`, `z_force_range`
+- taxel fallback: `xy_taxel_range`, `z_taxel_range`
 
-## URDF Mode Requirements
-- Launch `robot_state_publisher` with `description/xela_uSPr2F_2_modules.xacro`.
-- Launch `xela_taxel_joint_state_publisher` to publish `/joint_states` for taxel joints.
-- `x_modules[].frame_ids[]` must match URDF joint/link names.
-- Direction signs are controlled by `urdf_left_force_*` and `urdf_right_force_*`.
+### 6.4 Direction signs
+Independent sign parameters by mode:
+- Grid: `left_force_*`, `right_force_*`
+- URDF: `urdf_left_force_*`, `urdf_right_force_*`
 
-## Data Handling Rules
-- If `forces.size()` < `grid_rows * grid_cols`, fill remaining with zeros.
-- If `forces.size()` > `grid_rows * grid_cols`, ignore extras.
-- If `right_module_index` is out of range, only left module is shown.
+This is used to align displayed XY direction with physical sensor orientation.
 
-## RViz2 Setup
-- Add `MarkerArray` display for `/x_taxel_2f/markers`.
-- Set Fixed Frame to `frame_id`.
+## 7. Marker Construction Strategy
+- Grid background markers are prebuilt and reused.
+- Dynamic markers are emitted every processed message.
+- Stable ID scheme:
+  - `grid`: `module_offset + idx`
+  - `circle`: `module_offset + 100 + idx`
+  - `arrow`: `module_offset + 200 + idx`
+  - `module_offset = module_index * 1000`
 
-## Validation Plan
-- Unit test: mapping index -> (row, col) for left/right.
-- Playback test: feed known forces and verify circle size/color and arrow direction.
-- Visual check: confirm 180-degree mapping (L1 aligns with R24).
+Benefits:
+- deterministic overwrite in RViz
+- reduced visual flicker
+
+## 8. QoS and Timing
+- Output QoS durability configurable by `publisher_transient_local`.
+- Timestamp policy:
+  - `keep`: use message stamp (fallback to now)
+  - `now`: force current time
+  - `zero`: force time zero
+- Optional rate cap via `max_publish_rate_hz`.
+
+## 9. Integration Notes
+- In larger systems (e.g., full robot stack), URDF mode can introduce model/TF conflicts if a separate primary robot model is already active.
+- Recommended pattern:
+  - use one authoritative robot model publisher per graph
+  - include taxel URDF publishers only when model namespace/ownership is clear
+
+## 10. Known Tradeoffs
+- Service mode switch does not change launch-time URDF stack ownership.
+  - If URDF support processes are not present, switching to URDF may still lack full TF context.
+- Grid mode is more robust under constrained web/TF pipelines.
+- URDF mode provides better frame-anchored semantics but is more sensitive to TF timing/coverage.

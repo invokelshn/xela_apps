@@ -1,0 +1,4 @@
+/**:
+  ros__parameters:
+    grid_rows: 3
+    grid_cols: 5

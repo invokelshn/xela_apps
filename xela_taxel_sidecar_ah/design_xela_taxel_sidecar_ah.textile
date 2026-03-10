@@ -1,0 +1,66 @@
+h1. Design - xela_taxel_sidecar_ah
+
+h2. 1. Overview and design objective
+
+The AH sidecar design addresses higher taxel density and model-side mapping complexity compared to 2F.
+
+Design intent:
+
+* keep a stable sidecar service/topic contract while adding AH mapping/pattern semantics
+* decouple bridge mode switching from optional viz-node mode service availability
+* preserve compatibility with @std_xela_taxel_viz_ahv4@ namespace-local TF conventions
+
+This enables incremental AH web visualization improvements without forcing changes in tactile producer or std-viz packages.
+
+h2. 2. Bridge design
+
+h3. 2.1 Mapping model
+
+* mapping file provides flat index and frame-name contract
+* pattern file provides 2D grid projection
+* hand-side auto resolution switches prefix conversion and default pattern
+
+h3. 2.2 Signal model
+
+* force-first rendering with taxel fallback
+* baseline/deadband for force and taxel paths
+* optional group/module filtering (@show_thumb@, @show_module_XX@)
+
+h3. 2.3 URDF point model
+
+* enabled by @emit_urdf_points@
+* TF lookup with cache (@tf_cache_ttl_sec@)
+* optional frozen coordinates (@freeze_urdf_positions@)
+
+h2. 3. Mode manager design
+
+* service endpoint: @/xela_viz_mode_manager/set_mode@
+* always updates bridge params
+* viz service call controlled by:
+** @use_viz_set_mode@
+** @require_viz_set_mode_service@
+
+This avoids hard failure when target viz node has no @set_mode@.
+
+h2. 4. Launch design
+
+@xela_taxel_sidecar_cpp.launch.py@:
+
+* resolves hand/mapping/pattern at launch time (@OpaqueFunction@)
+* configures transport + mode manager options
+* supports namespace-local TF remap
+
+@xela_taxel_sidecar.launch.py@: thin wrapper to cpp launch.
+
+h2. 5. Risks
+
+* wrong mapping/pattern combination for selected model
+* optional viz service disabled while user expects viz-side mode switch
+* TF frame mismatch in URDF mode
+
+h2. 6. Validation
+
+* launch left/right models
+* verify output topic and web updates
+* verify mode toggling with @use_viz_set_mode@ off/on
+* verify URDF points in bridge payload

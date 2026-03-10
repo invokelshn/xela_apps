@@ -1,0 +1,55 @@
+# Functional Specification
+# xela_taxel_sidecar_ah
+
+## 0. Overview
+`xela_taxel_sidecar_ah` is the AH-focused web sidecar stack that converts high-density Allegro tactile payloads into deterministic web-state outputs.
+
+Compared to the 2F variant, this package adds AH-specific contracts:
+- mapping-yaml and pattern-yaml based taxel index projection
+- hand-side aware model resolution (`left/right/auto`)
+- optional TF-based URDF point emission for XelaModel rendering
+
+It is designed to be used standalone or with `std_xela_taxel_viz_ahv4`, while keeping mode-control and transport behavior explicit and reversible at runtime.
+
+## 1. Purpose
+Provide web-side tactile visualization bridge for Allegro Hand stream with runtime mode switch and AH mapping/pattern support.
+
+## 2. Scope
+- topic bridge (`/x_taxel_ah` -> `/x_taxel_ah/web_state`)
+- AH mapping/pattern based grid projection
+- optional URDF point generation from TF
+- sidecar web and optional rosbridge
+- mode manager with optional viz service forwarding
+
+## 3. Interfaces
+### 3.1 Input
+- `/x_taxel_ah` (`xela_taxel_msgs/msg/XTaxelSensorTArray`)
+- mapping yaml (`taxel_joint_map` / `server_model_joint_map`)
+- pattern yaml (`pattern.rows/cols/index_map`)
+
+### 3.2 Output
+- `/x_taxel_ah/web_state` (`std_msgs/msg/String` JSON)
+- service: `/xela_viz_mode_manager/set_mode` (`std_srvs/srv/SetBool`)
+
+### 3.3 Integration services
+- bridge param service: `/<bridge_node_name>/set_parameters`
+- optional viz service: `/<viz_node_name>/set_mode`
+
+## 4. Functional requirements
+- FR-01: bridge shall resolve hand side (`left/right/auto`) by argument and model name.
+- FR-02: bridge shall map AH frame ids to taxel indices using mapping yaml.
+- FR-03: bridge shall project mapped indices into grid using pattern yaml.
+- FR-04: mode manager shall update bridge mode on SetBool requests.
+- FR-05: mode manager shall optionally call viz mode service based on flags.
+- FR-06: launch shall support isolated sidecar rosbridge endpoint.
+
+## 5. Non-functional requirements
+- NFR-01: mode switch without relaunch.
+- NFR-02: standalone operation independent of MoveIt Pro runtime.
+- NFR-03: compatibility with namespace-local TF contracts used by std AH viz.
+
+## 6. Acceptance checks
+- AC-01: launch starts bridge/manager/web/rosbridge.
+- AC-02: `/x_taxel_ah/web_state` updates from incoming tactile stream.
+- AC-03: mode service updates bridge `viz_mode` and URDF point flags.
+- AC-04: right-hand model selects right pattern/mapping defaults.

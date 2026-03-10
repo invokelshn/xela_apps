@@ -1,0 +1,48 @@
+digraph XelaSidecarAH {
+  rankdir=LR;
+  graph [fontname="Helvetica", fontsize=11, bgcolor="white", labelloc="t", label="xela_taxel_sidecar_ah - Runtime Architecture"];
+  node  [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, fillcolor="#f8fafc", color="#334155"];
+  edge  [fontname="Helvetica", fontsize=9, color="#475569", arrowsize=0.8];
+
+  subgraph cluster_upstream {
+    label="Upstream / Core ROS2";
+    color="#cbd5e1";
+    style="rounded";
+
+    sim_server [label="sim_xela_server\n(WebSocket JSON)", fillcolor="#eef2ff"];
+    ah_server  [label="xela_server2_ah\nPublishes /x_taxel_ah", fillcolor="#eef2ff"];
+    std_viz    [label="std_xela_taxel_viz_ahv4\n/<ns>/robot_description\n/<ns>/tf, /<ns>/tf_static", fillcolor="#eef2ff"];
+
+    sim_server -> ah_server [label="ws://host:port"];
+  }
+
+  subgraph cluster_sidecar {
+    label="xela_taxel_sidecar_ah";
+    color="#cbd5e1";
+    style="rounded";
+
+    bridge [label="xela_taxel_web_bridge_node\nC++\n/x_taxel_ah -> /x_taxel_ah/web_state\n(mapping + pattern + baseline)", fillcolor="#ecfeff"];
+    mode_mgr [label="xela_viz_mode_manager_node\nC++\nService: /xela_viz_mode_manager/set_mode", fillcolor="#ecfeff"];
+    httpd [label="sidecar_http_server.py\nStatic web server (:8765)", fillcolor="#ecfeff"];
+    rb [label="rosbridge_websocket_sidecar\nOptional (:9090)", fillcolor="#ecfeff"];
+
+    mode_mgr -> bridge [label="set_parameters\n(viz_mode, emit_urdf_points, freeze_urdf_positions)"];
+  }
+
+  subgraph cluster_web {
+    label="Browser";
+    color="#cbd5e1";
+    style="rounded";
+
+    ui [label="taxel_sidecar/index.html\nGridMode / XelaModel / RobotModel", fillcolor="#f0fdf4"];
+  }
+
+  ah_server -> bridge [label="/x_taxel_ah\nXTaxelSensorTArray"];
+  bridge -> rb [label="/x_taxel_ah/web_state\nstd_msgs/String(JSON)"];
+  rb -> ui [label="rosbridge websocket"];
+  httpd -> ui [label="HTTP static assets"];
+
+  std_viz -> ui [label="XelaModel source\nrobot_description + tf", style=dashed, color="#0f766e"];
+  ui -> mode_mgr [label="Service call\n/xela_viz_mode_manager/set_mode", color="#0369a1"];
+  mode_mgr -> std_viz [label="Optional /<viz_node_name>/set_mode", style=dashed, color="#64748b"];
+}

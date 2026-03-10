@@ -1,0 +1,147 @@
+h1. xela_taxel_sidecar_2f
+
+Web sidecar package for *Xela 2F* tactile visualization.
+
+h2. Components
+
+* @xela_taxel_web_bridge_node@ (C++)
+* @xela_viz_mode_manager_node@ (C++)
+* @scripts/sidecar_http_server.py@
+* optional sidecar rosbridge websocket
+* static web UI (@web/taxel_sidecar@)
+
+h2. Data flow
+
+# subscribe @/x_taxel_2f@ (@xela_taxel_msgs/msg/XTaxelSensorTArray@)
+# optional subscribe @/x_telemetry_2f/grasp_telemetry@, @/x_telemetry_2f/grasp_event@ (@std_msgs/msg/String@)
+# publish @/x_taxel_2f/web_state@ (@std_msgs/msg/String@, JSON)
+# web UI reads sidecar rosbridge topic and renders @GridMode@, @XelaModel@, or @RobotModel@
+# @/xela_viz_mode_manager/set_mode@ toggles backend @grid/urdf@ behavior
+
+h2. Recommended launch (C++)
+
+<pre><code>
+ros2 launch xela_taxel_sidecar_2f xela_taxel_sidecar_cpp.launch.py
+</code></pre>
+
+Open: @http://localhost:8765@
+
+If Windows-to-WSL localhost forwarding is unavailable, use the WSL host IP instead (for example @http://<wsl-ip>:8765@).
+
+h2. Main launch defaults
+
+* @in_topic@: @/x_taxel_2f@
+* @out_topic@: @/x_taxel_2f/web_state@
+* @viz_mode@: @grid@
+* @model_name@: @uSPr2F@
+* @style_preset@: @cool_steel@
+* @frame_id@: @x_taxel_viz@
+* @grid_parent_frame@: @world@
+* @legacy_out_topic@: @/x_taxel_2f/markers@
+* @fixed_frame@: @world@
+* @grid_rows@: @4@
+* @grid_cols@: @6@
+* @cell_size@: @0.015@
+* @module_gap@: @0.04@
+* @row_flip_right@: @true@
+* @col_flip_right@: @true@
+* @max_publish_rate_hz@: @20.0@
+* @publisher_transient_local@: @false@
+* @marker_stamp_mode@: @now@
+* @circle_marker_type@: @sphere@
+* @emit_urdf_points@: @false@
+* @freeze_urdf_positions@: @true@
+* @enable_viz_mode_manager@: @true@
+* @managed_launch_package@: @ur5e_x2f_140_config2@
+* @managed_launch_file@: @xela_viz_safe.launch.py@
+* @bridge_node_name@: @/xela_taxel_web_bridge_cpp@
+* @viz_node_name@: @/xela_taxel_viz_2f@
+* @bridge_tf_topic@: @/tf@
+* @bridge_tf_static_topic@: @/tf_static@
+* @enable_web_server@: @true@
+* @web_host@: @0.0.0.0@
+* @web_port@: @8765@
+* @enable_sidecar_rosbridge@: @true@
+* @sidecar_rosbridge_host@: @0.0.0.0@
+* @sidecar_rosbridge_port@: @9090@
+
+h2. Bridge runtime parameters
+
+* @include_grasp_meta@: @true@
+* @grasp_telemetry_topic@: @/x_telemetry_2f/grasp_telemetry@
+* @grasp_event_topic@: @/x_telemetry_2f/grasp_event@
+
+h2. Web UI runtime notes
+
+* Browser display modes are @GridMode@, @XelaModel@, @RobotModel@.
+* ROS-side @viz_mode@ is still only @grid@ or @urdf@.
+* Websocket fallback order: @:9090@, @:3201@, @/ros@.
+* URL query parameters can override runtime behavior, including @topic@, @ns@, @xela_*@, @robot_model_*@, and @follow_cam_*@.
+* FollowCam and Analysis logic can remain implemented even when toolbar buttons are hidden for a test build.
+
+h2. FollowCam and Analysis usage
+
+* @FollowCam@
+** available only in @RobotModel@
+** toggles automatic front-upper camera tracking for the gripper / fingertip region
+** manual mouse orbit pauses follow for @3s@, then auto-follow resumes
+** toggling it off returns to normal RobotModel orbit framing
+* @Analysis@
+** toggles the lower stats/timeline panel
+** shows force/phase/event summaries, sparkline history, event markers, and hover tooltip inspection
+** timeline controls (@10s@, @30s@, @60s@, @Pause@) affect only the analysis panel
+
+h2. FollowCam URL parameter contract
+
+* There is no separate @follow_cam_profile@ key in the current implementation.
+* FollowCam is tuned with these query parameters:
+** @follow_cam_forward_distance@: forward camera offset from the resolved tip center
+** @follow_cam_height_offset@: world-Z height offset above the target
+** @follow_cam_look_ahead@: look target offset back toward the sensor area
+** @follow_cam_forward_sign@: flips the resolved forward hemisphere (@1@ or @-1@)
+* Current built-in baseline when no query override is provided:
+** @follow_cam_forward_distance=-0.2@
+** @follow_cam_height_offset=0.1@
+** @follow_cam_look_ahead=0.028@
+** @follow_cam_forward_sign=-1.0@
+* Example explicit URL:
+<pre><code>
+http://localhost:8765/?follow_cam_forward_distance=-0.2&follow_cam_height_offset=0.1&follow_cam_look_ahead=0.028&follow_cam_forward_sign=-1.0
+</code></pre>
+
+h2. Runtime mode switching
+
+<pre><code>
+# grid -> urdf
+ros2 service call /xela_viz_mode_manager/set_mode std_srvs/srv/SetBool "{data: true}"
+
+# urdf -> grid
+ros2 service call /xela_viz_mode_manager/set_mode std_srvs/srv/SetBool "{data: false}"
+</code></pre>
+
+h2. std_xela_taxel_viz_2f integration example
+
+<pre><code>
+ros2 launch xela_taxel_sidecar_2f xela_taxel_sidecar_cpp.launch.py   viz_mode:=urdf   model_name:=uSPrDS   viz_node_name:=/xviz2f/std_xela_taxel_viz_2f   bridge_tf_topic:=/xviz2f/tf   bridge_tf_static_topic:=/xviz2f/tf_static
+</code></pre>
+
+h2. Build
+
+<pre><code>
+cd ~/my_moveit_pro/01_wk_xela_mpro_dev_ws
+moveit_pro build user_workspace --colcon-args "--packages-select xela_taxel_sidecar_2f"
+</code></pre>
+
+h2. Troubleshooting
+
+* web disconnected: check @rosbridge_websocket_sidecar@ and rosbridge port
+* on Windows + WSL, if @http://localhost:8765@ fails but @http://<wsl-ip>:8765@ works, the issue is usually WSL localhost forwarding
+* no tactile updates: check @/x_taxel_2f@ and @/x_taxel_2f/web_state@
+* mode switch no effect: verify service and @viz_node_name@
+* duplicate sidecar nodes: do not run Python and C++ launch variants together
+
+h2. Documentation
+
+* Functional spec: @xela_taxel_sidecar_2f.md@
+* Design: @design_xela_taxel_sidecar_2f.md@
+* Redmine: @README.textile@, @xela_taxel_sidecar_2f.textile@, @design_xela_taxel_sidecar_2f.textile@

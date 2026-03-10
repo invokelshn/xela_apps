@@ -1,0 +1,15 @@
+output_topic: joint_states
+publish_rate: 30.0
+preserve_input_order: true
+source_list: []
+
+device_profiles:
+  uSPr2F:
+    keep_joints_files:
+      - uspr2f_joint.yaml
+  uSPrHE35:
+    keep_joints_files:
+      - usprhe35_joint.yaml
+  uSPrDS:
+    keep_joints_files:
+      - usprds_joint.yaml

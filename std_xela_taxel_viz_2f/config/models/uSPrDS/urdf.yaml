@@ -1,0 +1,8 @@
+/**:
+  ros__parameters:
+    urdf_taxel_scale: 0.2
+    overlay_grid_in_urdf: false
+    urdf_left_force_x_sign: -1.0
+    urdf_left_force_y_sign: 1.0
+    urdf_right_force_x_sign: -1.0
+    urdf_right_force_y_sign: 1.0

@@ -1,0 +1,103 @@
+h1. xela_taxel_sidecar_ah
+
+Web sidecar package for *Xela Allegro Hand (AH/AHv4)* tactile visualization.
+
+h2. Components
+
+* @xela_taxel_web_bridge_node@ (C++)
+* @xela_viz_mode_manager_node@ (C++)
+* @scripts/sidecar_http_server.py@
+* optional sidecar rosbridge websocket
+* static web UI (@web/taxel_sidecar@)
+
+h2. Data flow
+
+# subscribe @/x_taxel_ah@
+# bridge maps taxels by @mapping_yaml + pattern_yaml@
+# publish @/x_taxel_ah/web_state@ JSON
+# web UI subscribes through sidecar rosbridge
+# mode service @/xela_viz_mode_manager/set_mode@ updates bridge mode
+
+h2. Recommended launch
+
+<pre><code>
+ros2 launch xela_taxel_sidecar_ah xela_taxel_sidecar_cpp.launch.py
+</code></pre>
+
+Open: @http://localhost:8765@
+
+h2. Main launch defaults
+
+* @in_topic@: @/x_taxel_ah@
+* @out_topic@: @/x_taxel_ah/web_state@
+* @viz_mode@: @grid@
+* @model_name@: @XR23AHLCPP@
+* @hand_side@: @auto@
+* @mapping_yaml@: auto from @std_xela_taxel_viz_ahv4@
+* @pattern_yaml@: auto from @std_xela_taxel_viz_ahv4@ (left/right by model)
+* @style_preset@: @cool_steel@
+* @fixed_frame@: @world@
+* @cell_size@: @0.01@
+* @origin_x@: @0.0@
+* @origin_y@: @0.0@
+* @max_publish_rate_hz@: @20.0@
+* @emit_urdf_points@: @false@
+* @freeze_urdf_positions@: @true@
+* @enable_viz_mode_manager@: @true@
+* @bridge_node_name@: @/xela_taxel_web_bridge_cpp@
+* @viz_node_name@: @/xvizah/std_xela_taxel_viz_ahv4@
+* @use_viz_set_mode@: @false@
+* @require_viz_set_mode_service@: @false@
+* @bridge_tf_topic@: @/tf@
+* @bridge_tf_static_topic@: @/tf_static@
+* @enable_web_server@: @true@
+* @web_port@: @8765@
+* @enable_sidecar_rosbridge@: @true@
+* @sidecar_rosbridge_port@: @9090@
+
+h2. Runtime mode switching
+
+<pre><code>
+# grid -> urdf
+ros2 service call /xela_viz_mode_manager/set_mode std_srvs/srv/SetBool "{data: true}"
+
+# urdf -> grid
+ros2 service call /xela_viz_mode_manager/set_mode std_srvs/srv/SetBool "{data: false}"
+</code></pre>
+
+Note:
+
+* default is bridge-only mode switching (@use_viz_set_mode=false@)
+* enable viz service call only when target viz node supports @set_mode@
+
+h2. Integration examples
+
+Namespace-local TF with std AH viz:
+<pre><code>
+ros2 launch xela_taxel_sidecar_ah xela_taxel_sidecar_cpp.launch.py   viz_mode:=urdf   model_name:=XR23AHRCPP   bridge_tf_topic:=/xvizah/tf   bridge_tf_static_topic:=/xvizah/tf_static
+</code></pre>
+
+With @ur5e_xahr2c_config3@ driver:
+<pre><code>
+ros2 launch ur5e_xahr2c_config3 xela_driver.launch.py enable_taxel_sidecar:=true
+</code></pre>
+
+h2. Build
+
+<pre><code>
+cd ~/my_moveit_pro/01_wk_xela_mpro_dev_ws
+moveit_pro build user_workspace --colcon-args "--packages-select xela_taxel_sidecar_ah"
+</code></pre>
+
+h2. Troubleshooting
+
+* mapping/pattern load error: check resolved YAML paths and hand-side model
+* no updates on web: verify @/x_taxel_ah@ and @/x_taxel_ah/web_state@
+* mode switch no effect on std viz: @use_viz_set_mode@ is off by default
+* URDF points missing: check @fixed_frame@ and TF remap topics
+
+h2. Documentation
+
+* Functional spec: @xela_taxel_sidecar_ah.md@
+* Design: @design_xela_taxel_sidecar_ah.md@
+* Redmine: @README.textile@, @xela_taxel_sidecar_ah.textile@, @design_xela_taxel_sidecar_ah.textile@

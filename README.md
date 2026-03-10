@@ -23,8 +23,10 @@ source $XELA_WS/install/setup.bash
 | `sim_xela_server` | ROS 2 package | JSON replayer WebSocket server | ws://`<host>`:`<port>` |
 | `xela_server2_2f` | ROS 2 package | 2F JSON -> ROS bridge | `/x_taxel_2f` |
 | `xela_taxel_viz_2f` | ROS 2 package | 2F RViz visualization (grid/urdf) | `/x_taxel_2f/markers` |
+| `xela_taxel_sidecar_2f` | ROS 2 package | 2F web sidecar (grid/urdf) | `/x_taxel_2f/web_state` |
 | `xela_server2_ah` | ROS 2 package | Allegro JSON -> ROS bridge | `/x_taxel_ah` |
 | `xela_taxel_viz_ahv4` | ROS 2 package | Allegro RViz visualization (grid/urdf/demo) | `/x_taxel_ah/markers` |
+| `xela_taxel_sidecar_ah` | ROS 2 package | Allegro web sidecar (grid/urdf) | `/x_taxel_ah/web_state` |
 | `xela_taxel_docs` | docs | Sensor manuals and spec sheets (PDF) | - |
 
 ## Common Build
@@ -34,7 +36,8 @@ cd $XELA_WS
 colcon build --packages-select \
   sim_xela_server \
   xela_server2_2f xela_taxel_viz_2f \
-  xela_server2_ah xela_taxel_viz_ahv4
+  xela_server2_ah xela_taxel_viz_ahv4 \
+  xela_taxel_sidecar_2f xela_taxel_sidecar_ah
 source $XELA_WS/install/setup.bash
 ```
 

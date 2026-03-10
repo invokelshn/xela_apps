@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <array>
+#include <cctype>
+#include <chrono>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -8,6 +10,7 @@
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <geometry_msgs/msg/point.hpp>
 #include <std_msgs/msg/color_rgba.hpp>
+#include <std_srvs/srv/set_bool.hpp>
 #include <xela_taxel_msgs/msg/x_taxel_sensor_t_array.hpp>
 
 namespace {
@@ -79,6 +82,7 @@ public:
   XelaTaxelViz2F() : Node("xela_taxel_viz_2f") {
     declare_parameter<std::string>("in_topic", "/x_taxel_2f");
     declare_parameter<std::string>("out_topic", "/x_taxel_2f/markers");
+    declare_parameter<std::string>("legacy_out_topic", "");
     declare_parameter<std::string>("frame_id", "x_taxel_viz");
     declare_parameter<std::string>("viz_mode", "grid");
     declare_parameter<bool>("overlay_grid_in_urdf", true);
@@ -111,6 +115,8 @@ public:
     declare_parameter<double>("baseline_duration_sec", 2.0);
     declare_parameter<std::string>("marker_stamp_mode", "keep");
     declare_parameter<double>("marker_time_offset_sec", 0.0);
+    declare_parameter<double>("max_publish_rate_hz", 0.0);
+    declare_parameter<bool>("publisher_transient_local", true);
     declare_parameter<double>("baseline_deadband_xy", 0.0);
     declare_parameter<double>("baseline_deadband_z", 0.0);
     declare_parameter<double>("baseline_deadband_taxel_xy", 0.0);
@@ -126,6 +132,7 @@ public:
     declare_parameter<double>("circle_min_radius", 0.002);
     declare_parameter<double>("circle_max_radius", 0.008);
     declare_parameter<double>("circle_height", 0.002);
+    declare_parameter<std::string>("circle_marker_type", "cylinder");
     declare_parameter<bool>("use_cell_scale", true);
     declare_parameter<double>("circle_area_scale", 2.0);
 
@@ -162,6 +169,7 @@ public:
 
     in_topic_ = get_parameter("in_topic").as_string();
     out_topic_ = get_parameter("out_topic").as_string();
+    legacy_out_topic_ = get_parameter("legacy_out_topic").as_string();
     frame_id_ = get_parameter("frame_id").as_string();
     viz_mode_ = get_parameter("viz_mode").as_string();
     overlay_grid_in_urdf_ = get_parameter("overlay_grid_in_urdf").as_bool();
@@ -198,6 +206,8 @@ public:
     baseline_deadband_taxel_z_ = get_parameter("baseline_deadband_taxel_z").as_double();
     marker_stamp_mode_ = get_parameter("marker_stamp_mode").as_string();
     marker_time_offset_sec_ = get_parameter("marker_time_offset_sec").as_double();
+    max_publish_rate_hz_ = get_parameter("max_publish_rate_hz").as_double();
+    publisher_transient_local_ = get_parameter("publisher_transient_local").as_bool();
     use_axis_normalization_ = get_parameter("use_axis_normalization").as_bool();
     xy_force_range_ = get_parameter("xy_force_range").as_double();
     z_force_range_ = get_parameter("z_force_range").as_double();
@@ -209,8 +219,25 @@ public:
     circle_min_radius_ = get_parameter("circle_min_radius").as_double();
     circle_max_radius_ = get_parameter("circle_max_radius").as_double();
     circle_height_ = get_parameter("circle_height").as_double();
+    circle_marker_type_ = get_parameter("circle_marker_type").as_string();
     use_cell_scale_ = get_parameter("use_cell_scale").as_bool();
     circle_area_scale_ = get_parameter("circle_area_scale").as_double();
+
+    std::transform(circle_marker_type_.begin(), circle_marker_type_.end(),
+                   circle_marker_type_.begin(), [](unsigned char c) {
+                     return static_cast<char>(std::tolower(c));
+                   });
+    if (circle_marker_type_ == "sphere") {
+      circle_marker_ros_type_ = visualization_msgs::msg::Marker::SPHERE;
+    } else if (circle_marker_type_ == "cylinder") {
+      circle_marker_ros_type_ = visualization_msgs::msg::Marker::CYLINDER;
+    } else {
+      RCLCPP_WARN(get_logger(),
+                  "Unknown circle_marker_type '%s'; using cylinder.",
+                  circle_marker_type_.c_str());
+      circle_marker_type_ = "cylinder";
+      circle_marker_ros_type_ = visualization_msgs::msg::Marker::CYLINDER;
+    }
 
     arrow_min_length_ = get_parameter("arrow_min_length").as_double();
     arrow_max_length_ = get_parameter("arrow_max_length").as_double();
@@ -343,6 +370,16 @@ public:
     if (std::isnan(marker_time_offset_sec_) || std::isinf(marker_time_offset_sec_)) {
       marker_time_offset_sec_ = 0.0;
     }
+    if (std::isnan(max_publish_rate_hz_) || std::isinf(max_publish_rate_hz_) ||
+        max_publish_rate_hz_ < 0.0) {
+      RCLCPP_WARN(get_logger(), "max_publish_rate_hz is invalid, disabling rate limit.");
+      max_publish_rate_hz_ = 0.0;
+    }
+    if (max_publish_rate_hz_ > 0.0) {
+      min_publish_period_sec_ = 1.0 / max_publish_rate_hz_;
+      RCLCPP_INFO(get_logger(), "Marker publish rate limited to %.2f Hz.",
+                  max_publish_rate_hz_);
+    }
     if (min_marker_scale_ <= 0.0) {
       min_marker_scale_ = 1e-6;
     }
@@ -399,14 +436,28 @@ public:
     buildGridMarkers();
 
     rclcpp::QoS qos(10);
-    qos.transient_local();
+    if (publisher_transient_local_) {
+      qos.transient_local();
+    } else {
+      qos.durability_volatile();
+    }
 
     pub_ = create_publisher<visualization_msgs::msg::MarkerArray>(out_topic_, qos);
+    if (!legacy_out_topic_.empty() && legacy_out_topic_ != out_topic_) {
+      legacy_pub_ = create_publisher<visualization_msgs::msg::MarkerArray>(legacy_out_topic_, qos);
+    }
     sub_ = create_subscription<xela_taxel_msgs::msg::XTaxelSensorTArray>(
       in_topic_, 10, std::bind(&XelaTaxelViz2F::onArray, this, std::placeholders::_1));
+    set_mode_service_ = create_service<std_srvs::srv::SetBool>(
+      "xela_taxel_viz_2f/set_mode",
+      std::bind(
+        &XelaTaxelViz2F::onSetMode, this,
+        std::placeholders::_1, std::placeholders::_2));
 
-    RCLCPP_INFO(get_logger(), "xela_taxel_viz_2f started. in: %s out: %s", in_topic_.c_str(),
-                out_topic_.c_str());
+    RCLCPP_INFO(get_logger(), "xela_taxel_viz_2f started. in: %s out: %s legacy_out: %s durability: %s",
+                in_topic_.c_str(), out_topic_.c_str(),
+                legacy_out_topic_.empty() ? "-" : legacy_out_topic_.c_str(),
+                publisher_transient_local_ ? "transient_local" : "volatile");
   }
 
 private:
@@ -712,9 +763,25 @@ private:
   }
 
   void onArray(const xela_taxel_msgs::msg::XTaxelSensorTArray::SharedPtr msg) {
-    visualization_msgs::msg::MarkerArray out;
     rclcpp::Time stamp = getStamp(msg->header);
 
+    updateBaseline(*msg, left_module_index_, baselines_[0], stamp);
+    updateBaseline(*msg, right_module_index_, baselines_[1], stamp);
+
+    if (max_publish_rate_hz_ > 0.0) {
+      const auto now_steady = std::chrono::steady_clock::now();
+      if (has_last_publish_time_) {
+        const double elapsed_sec =
+          std::chrono::duration<double>(now_steady - last_publish_time_steady_).count();
+        if (elapsed_sec < min_publish_period_sec_) {
+          return;
+        }
+      }
+      last_publish_time_steady_ = now_steady;
+      has_last_publish_time_ = true;
+    }
+
+    visualization_msgs::msg::MarkerArray out;
     bool show_grid = (viz_mode_ == "grid") || (viz_mode_ == "urdf" && overlay_grid_in_urdf_);
     if (show_grid) {
       for (auto marker : grid_markers_) {
@@ -723,9 +790,6 @@ private:
         out.markers.push_back(std::move(marker));
       }
     }
-
-    updateBaseline(*msg, left_module_index_, baselines_[0], stamp);
-    updateBaseline(*msg, right_module_index_, baselines_[1], stamp);
 
     if (viz_mode_ == "grid") {
       appendModuleMarkersGrid(*msg, left_module_index_, baselines_[0], layouts_[0], 0, "left", out);
@@ -736,6 +800,40 @@ private:
     }
 
     pub_->publish(out);
+    if (legacy_pub_) {
+      legacy_pub_->publish(out);
+    }
+  }
+
+  void publishDeleteAll(const rclcpp::Time &stamp) {
+    visualization_msgs::msg::MarkerArray out;
+    visualization_msgs::msg::Marker clear;
+    clear.header.frame_id = frame_id_;
+    clear.header.stamp = stamp;
+    clear.action = visualization_msgs::msg::Marker::DELETEALL;
+    out.markers.push_back(clear);
+    pub_->publish(out);
+    if (legacy_pub_) {
+      legacy_pub_->publish(out);
+    }
+  }
+
+  void onSetMode(
+    const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+    std::shared_ptr<std_srvs::srv::SetBool::Response> response)
+  {
+    const std::string target_mode = request->data ? "urdf" : "grid";
+    if (target_mode == viz_mode_) {
+      response->success = true;
+      response->message = "Already in " + target_mode + " mode";
+      return;
+    }
+
+    publishDeleteAll(now());
+    viz_mode_ = target_mode;
+    response->success = true;
+    response->message = "Switched to " + target_mode;
+    RCLCPP_INFO(get_logger(), "viz_mode switched via service: %s", viz_mode_.c_str());
   }
 
   void appendModuleMarkersGrid(const xela_taxel_msgs::msg::XTaxelSensorTArray &msg,
@@ -865,7 +963,7 @@ private:
       circle.header.stamp = stamp;
       circle.ns = "circle_" + module_ns;
       circle.id = module_offset * 1000 + 100 + static_cast<int>(idx);
-      circle.type = visualization_msgs::msg::Marker::CYLINDER;
+      circle.type = circle_marker_ros_type_;
       circle.action = visualization_msgs::msg::Marker::ADD;
       circle.pose.position = center;
       circle.pose.position.z = circle_height_ * 0.5;
@@ -1054,7 +1152,7 @@ private:
       circle.header.stamp = stamp;
       circle.ns = "circle_" + module_ns;
       circle.id = module_offset * 1000 + 100 + static_cast<int>(idx);
-      circle.type = visualization_msgs::msg::Marker::CYLINDER;
+      circle.type = circle_marker_ros_type_;
       circle.action = visualization_msgs::msg::Marker::ADD;
       circle.pose.orientation.w = 1.0;
       circle.pose.position.x = 0.0;
@@ -1160,6 +1258,7 @@ private:
 
   std::string in_topic_;
   std::string out_topic_;
+  std::string legacy_out_topic_;
   std::string frame_id_;
   std::string viz_mode_;
   bool overlay_grid_in_urdf_ = true;
@@ -1207,6 +1306,8 @@ private:
   double circle_min_radius_ = 0.002;
   double circle_max_radius_ = 0.008;
   double circle_height_ = 0.002;
+  std::string circle_marker_type_ = "cylinder";
+  int circle_marker_ros_type_ = visualization_msgs::msg::Marker::CYLINDER;
   bool use_cell_scale_ = true;
   double circle_area_scale_ = 2.0;
 
@@ -1220,6 +1321,11 @@ private:
   double min_marker_scale_ = 1e-4;
   bool debug_touch_stats_ = false;
   double marker_time_offset_sec_ = 0.0;
+  double max_publish_rate_hz_ = 0.0;
+  bool publisher_transient_local_ = true;
+  double min_publish_period_sec_ = 0.0;
+  bool has_last_publish_time_ = false;
+  std::chrono::steady_clock::time_point last_publish_time_steady_{};
   double arrow_length_scale_ = 2.0;
 
   double grid_thickness_ = 0.0008;
@@ -1250,6 +1356,8 @@ private:
 
   rclcpp::Subscription<xela_taxel_msgs::msg::XTaxelSensorTArray>::SharedPtr sub_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr legacy_pub_;
+  rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_mode_service_;
 };
 
 int main(int argc, char **argv) {
