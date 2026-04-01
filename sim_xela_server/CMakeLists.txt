@@ -11,6 +11,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread)
 
 add_executable(sim_xela_server_node
@@ -29,6 +30,7 @@ target_link_libraries(sim_xela_server_node
 ament_target_dependencies(sim_xela_server_node
   rclcpp
   ament_index_cpp
+  std_srvs
 )
 
 install(TARGETS sim_xela_server_node

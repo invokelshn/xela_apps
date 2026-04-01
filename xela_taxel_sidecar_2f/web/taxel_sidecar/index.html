@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="data:," />
   <title>Xela Taxel Sidecar</title>
+  <!-- Server-injected runtime defaults (sim_server_node, etc.). Served dynamically by sidecar_http_server.py. -->
+  <script src="/sidecar_runtime_defaults.js"></script>
   <style>
     :root {
       --bg: #0f172a;
@@ -57,6 +59,43 @@
       display: flex;
       align-items: stretch;
       width: 100%;
+    }
+    .simulate-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 6px 4px 2px;
+      border-top: 1px solid var(--line);
+    }
+    .simulate-row .sim-label {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 0 4px;
+      white-space: nowrap;
+    }
+    .sim-btn { font-size: 12px; }
+    .sim-btn.active {
+      border-color: #f59e0b;
+      background: #2d1d00;
+      color: #fde68a;
+    }
+    #simBtn.active {
+      border-color: #f59e0b;
+      background: #2d1d00;
+      color: #fde68a;
+    }
+    .sim-state-badge {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0b1222;
+      white-space: nowrap;
+      min-width: 120px;
+      text-align: center;
     }
     .status-wrap {
       display: inline-flex;
@@ -323,7 +362,21 @@
         <button class="mode-btn" id="robotBtn">RobotModel</button>
         <button class="mode-btn" id="followBtn">FollowCam</button>
         <button class="mode-btn active" id="analysisBtn">Analysis</button>
+        <button class="mode-btn" id="simBtn" style="display:none">Simulate</button>
         <div class="mini" id="topicInfo"></div>
+      </div>
+      <!-- Simulate sub-toolbar: visible when Simulate is toggled on -->
+      <div class="simulate-row" id="simulateRow" style="display:none">
+        <span class="sim-label">Scenario:</span>
+        <button class="sim-btn mode-btn active" id="simGenBtn"   title="Normal random variation (default)">GEN</button>
+        <button class="sim-btn mode-btn"        id="simClearBtn" title="No contact — silent baseline">CLEAR</button>
+        <span class="sim-label" style="margin-left:6px">Pick:</span>
+        <button class="sim-btn mode-btn"        id="simPickSharpBtn"  title="뾰족한 물체 — center 4 taxels">Sharp</button>
+        <button class="sim-btn mode-btn"        id="simPickMediumBtn" title="약간 두툼한 물체 — center 8 taxels">Medium</button>
+        <button class="sim-btn mode-btn"        id="simPickWideBtn"   title="넓은 물체 — all 24 taxels">Wide</button>
+        <button class="sim-btn mode-btn"        id="simPlaceBtn" title="Release — ramp-down with last grasp profile" style="margin-left:6px">PLACE</button>
+        <button class="sim-btn mode-btn"        id="simSlipBtn"  title="Slip — one-shot slip event (only active during Pick)" disabled style="opacity:0.4">SLIP</button>
+        <span class="sim-state-badge" id="simStateBadge">state: GEN</span>
       </div>
       <div class="stats-row" id="statsRow">
         <div class="mini" id="stats">
@@ -387,6 +440,7 @@
         followCamHeightOffset,
         followCamLookAhead,
         followCamForwardSign,
+        simServerNode,
       } = runtimeConfig;
 
       const canvas = document.getElementById("canvas");
@@ -401,6 +455,119 @@
       const robotBtn = document.getElementById("robotBtn");
       const followBtn = document.getElementById("followBtn");
       const analysisBtn = document.getElementById("analysisBtn");
+
+      // ── Simulate toolbar ──────────────────────────────────────
+      const simBtn          = document.getElementById("simBtn");
+      const simulateRow     = document.getElementById("simulateRow");
+      const simStateBadge   = document.getElementById("simStateBadge");
+      const simGenBtn       = document.getElementById("simGenBtn");
+      const simClearBtn     = document.getElementById("simClearBtn");
+      const simPickSharpBtn = document.getElementById("simPickSharpBtn");
+      const simPickMediumBtn= document.getElementById("simPickMediumBtn");
+      const simPickWideBtn  = document.getElementById("simPickWideBtn");
+      const simPlaceBtn     = document.getElementById("simPlaceBtn");
+      const simSlipBtn      = document.getElementById("simSlipBtn");
+
+      // Service name prefix: "/sim_xela_server" (derived from simServerNode URL param)
+      const simSvcPrefix = simServerNode ? "/" + simServerNode.replace(/^\/+/, "") : "";
+
+      // Show Simulate button only when sim_server_node URL param is provided
+      if (simSvcPrefix) {
+        simBtn.style.display = "";
+      }
+
+      let simRowVisible = false;
+
+      // Track the currently active Pick button so we can re-highlight it after slip
+      let activePickBtn = null;
+      let activePickLabel = null;
+      // SLIP auto-revert timer ID
+      let slipRevertTimer = null;
+      const kSlipDurationMs = 1600;  // slightly longer than C++ 1.5 s to avoid race
+
+      function setSlipEnabled(enabled) {
+        simSlipBtn.disabled = !enabled;
+        simSlipBtn.style.opacity = enabled ? "" : "0.4";
+      }
+
+      function setSimActive(btnEl, label) {
+        [simGenBtn, simClearBtn, simPickSharpBtn, simPickMediumBtn,
+         simPickWideBtn, simPlaceBtn, simSlipBtn].forEach(b => {
+          if (b) b.classList.remove("active");
+        });
+        if (btnEl) btnEl.classList.add("active");
+        simStateBadge.textContent = "state: " + label;
+      }
+
+      function callSimService(serviceSuffix, btnEl, label) {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+          simStateBadge.textContent = "not connected";
+          return;
+        }
+        state.ws.send(JSON.stringify({
+          op: "call_service",
+          service: simSvcPrefix + serviceSuffix,
+          type: "std_srvs/srv/Trigger",
+          args: {},
+        }));
+        setSimActive(btnEl, label);
+      }
+
+      simBtn.addEventListener("click", () => {
+        simRowVisible = !simRowVisible;
+        simulateRow.style.display = simRowVisible ? "" : "none";
+        simBtn.classList.toggle("active", simRowVisible);
+      });
+
+      simGenBtn.addEventListener("click", () => {
+        callSimService("/scenario_gen", simGenBtn, "GEN");
+        activePickBtn = null; activePickLabel = null;
+        setSlipEnabled(false);
+        if (slipRevertTimer) { clearTimeout(slipRevertTimer); slipRevertTimer = null; }
+      });
+      simClearBtn.addEventListener("click", () => {
+        callSimService("/scenario_clear", simClearBtn, "CLEAR");
+        activePickBtn = null; activePickLabel = null;
+        setSlipEnabled(false);
+        if (slipRevertTimer) { clearTimeout(slipRevertTimer); slipRevertTimer = null; }
+      });
+      simPickSharpBtn.addEventListener("click", () => {
+        callSimService("/scenario_pick_sharp", simPickSharpBtn, "PICK sharp");
+        activePickBtn = simPickSharpBtn; activePickLabel = "PICK sharp";
+        setSlipEnabled(true);
+        if (slipRevertTimer) { clearTimeout(slipRevertTimer); slipRevertTimer = null; }
+      });
+      simPickMediumBtn.addEventListener("click", () => {
+        callSimService("/scenario_pick_medium", simPickMediumBtn, "PICK medium");
+        activePickBtn = simPickMediumBtn; activePickLabel = "PICK medium";
+        setSlipEnabled(true);
+        if (slipRevertTimer) { clearTimeout(slipRevertTimer); slipRevertTimer = null; }
+      });
+      simPickWideBtn.addEventListener("click", () => {
+        callSimService("/scenario_pick_wide", simPickWideBtn, "PICK wide");
+        activePickBtn = simPickWideBtn; activePickLabel = "PICK wide";
+        setSlipEnabled(true);
+        if (slipRevertTimer) { clearTimeout(slipRevertTimer); slipRevertTimer = null; }
+      });
+      simPlaceBtn.addEventListener("click", () => {
+        callSimService("/scenario_place", simPlaceBtn, "PLACE");
+        activePickBtn = null; activePickLabel = null;
+        setSlipEnabled(false);
+        if (slipRevertTimer) { clearTimeout(slipRevertTimer); slipRevertTimer = null; }
+      });
+      simSlipBtn.addEventListener("click", () => {
+        if (simSlipBtn.disabled) return;
+        callSimService("/scenario_slip", simSlipBtn, "SLIP →");
+        // After slip waveform completes, C++ reverts to PICK — mirror that in UI
+        if (slipRevertTimer) clearTimeout(slipRevertTimer);
+        slipRevertTimer = setTimeout(() => {
+          slipRevertTimer = null;
+          if (activePickBtn) {
+            setSimActive(activePickBtn, activePickLabel);
+          }
+        }, kSlipDurationMs);
+      });
+      // ─────────────────────────────────────────────────────────
       const win10Btn = document.getElementById("win10Btn");
       const win30Btn = document.getElementById("win30Btn");
       const win60Btn = document.getElementById("win60Btn");

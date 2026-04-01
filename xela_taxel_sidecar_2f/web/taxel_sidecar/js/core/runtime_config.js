@@ -61,6 +61,15 @@ export function buildRuntimeConfig(windowRef) {
   const followCamLookAhead = parseNum(params.get("follow_cam_look_ahead"), 0.028);
   const followCamForwardSign = parseNum(params.get("follow_cam_forward_sign"), -1.0);
 
+  // sim_server_node: ROS node name of sim_xela_server (without leading slash).
+  // When non-empty the Simulate toolbar is visible in the sidecar UI.
+  // Priority: URL param → server-injected default (window.XELA_SIM_SERVER_NODE) → ""
+  const simServerNode = (
+    params.get("sim_server_node") ||
+    (typeof window !== "undefined" && window.XELA_SIM_SERVER_NODE) ||
+    ""
+  ).trim();
+
   return {
     wsCandidates,
     topic,
@@ -82,5 +91,6 @@ export function buildRuntimeConfig(windowRef) {
     followCamHeightOffset,
     followCamLookAhead,
     followCamForwardSign,
+    simServerNode,
   };
 }

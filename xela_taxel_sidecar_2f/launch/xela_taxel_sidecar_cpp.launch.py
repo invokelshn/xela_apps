@@ -84,7 +84,9 @@ def generate_launch_description() -> LaunchDescription:
             "--port",
             LaunchConfiguration("web_port"),
             "--web-root",
-            web_root
+            web_root,
+            "--sim-server-node",
+            LaunchConfiguration("sim_server_node"),
         ],
         output="screen",
         condition=IfCondition(LaunchConfiguration("enable_web_server")),
@@ -149,6 +151,9 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("enable_web_server", default_value="true"),
         DeclareLaunchArgument("web_host", default_value="0.0.0.0"),
         DeclareLaunchArgument("web_port", default_value="8765"),
+        DeclareLaunchArgument("sim_server_node", default_value="",
+                              description="ROS node name of sim_xela_server. "
+                                          "When non-empty the Simulate toolbar is shown by default."),
         DeclareLaunchArgument("enable_sidecar_rosbridge", default_value="true"),
         DeclareLaunchArgument("sidecar_rosbridge_host", default_value="0.0.0.0"),
         DeclareLaunchArgument("sidecar_rosbridge_port", default_value="9090"),

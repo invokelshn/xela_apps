@@ -353,8 +353,8 @@
       <button class="mode-btn" id="gridBtn">GridMode</button>
       <button class="mode-btn" id="xelaBtn">XelaModel</button>
       <button class="mode-btn" id="robotBtn">RobotModel</button>
-      <button class="mode-btn" id="followBtn" style="display: none;">FollowCam</button>
-      <button class="mode-btn" id="analysisBtn" style="display: none;">Analysis</button>
+      <button class="mode-btn" id="followBtn">FollowCam</button>
+      <button class="mode-btn" id="analysisBtn">Analysis</button>
     </div>
     <div class="toolbar module-toolbar" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
       <div style="grid-column: 1 / -1; display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
@@ -582,7 +582,7 @@
       });
       setTimelineWindowMs(30000);
       setTimelinePaused(false, performance.now());
-      setAnalysisVisible(false);
+      setAnalysisVisible(true);
 
       function safeErrorText(reason) {
         if (!reason) return "unknown";
