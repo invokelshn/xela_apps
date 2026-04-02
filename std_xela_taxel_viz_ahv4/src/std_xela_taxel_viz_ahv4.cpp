@@ -122,7 +122,7 @@ public:
     declare_parameter<bool>("show_ring", true);
     declare_parameter<bool>("show_palm", true);
 
-    for (const std::string& mod : {"01", "02", "03", "10", "11", "12", "13", "20", "21", "22", "23", "30", "31", "32", "33", "51", "52", "53"}) {
+    for (const std::string mod : {"01", "02", "03", "10", "11", "12", "13", "20", "21", "22", "23", "30", "31", "32", "33", "51", "52", "53"}) {
         declare_parameter<bool>("show_module_" + mod, true);
         show_modules_[mod] = true;
     }
