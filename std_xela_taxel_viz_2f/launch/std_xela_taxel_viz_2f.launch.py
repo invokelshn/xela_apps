@@ -1,3 +1,6 @@
+import os
+
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
@@ -6,6 +9,9 @@ from launch.substitutions import (Command, FindExecutable, LaunchConfiguration,
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
+# Models that support mount_type (standalone/gripper) subdirectory in config/models/
+_MOUNT_TYPE_MODELS = {'uSPa44', 'uSPa46'}
 
 
 def generate_launch_description():
@@ -28,7 +34,8 @@ def generate_launch_description():
         Command([
             FindExecutable(name='xacro'), ' ',
             LaunchConfiguration('urdf_xacro_path'), ' ',
-            'use_ros2_control:=false'
+            'use_ros2_control:=false ',
+            'mount_type:=', LaunchConfiguration('mount_type'),
         ]),
         value_type=str
     )
@@ -36,6 +43,7 @@ def generate_launch_description():
     def build_viz_node(context):
         viz_mode_value = LaunchConfiguration('viz_mode').perform(context)
         model_name = LaunchConfiguration('model_name').perform(context)
+        mount_type_value = LaunchConfiguration('mount_type').perform(context)
         overlay_value = LaunchConfiguration('overlay_grid_in_urdf').perform(context)
         overlay_bool = str(overlay_value).lower() in ('1', 'true', 'yes', 'on')
         style_value = LaunchConfiguration('style_preset').perform(context)
@@ -49,6 +57,19 @@ def generate_launch_description():
         frame_prefix_value = LaunchConfiguration('frame_prefix').perform(context).strip()
         if frame_prefix_value.startswith('/'):
             frame_prefix_value = frame_prefix_value.lstrip('/')
+
+        # Resolve model params file: mount_type models use a subdir, others use flat path
+        pkg_share = get_package_share_directory('std_xela_taxel_viz_2f')
+        if model_name in _MOUNT_TYPE_MODELS:
+            model_params_file = os.path.join(
+                pkg_share, 'config', 'models', model_name, mount_type_value,
+                viz_mode_value + '.yaml'
+            )
+        else:
+            model_params_file = os.path.join(
+                pkg_share, 'config', 'models', model_name,
+                viz_mode_value + '.yaml'
+            )
 
         overrides = {
             'viz_mode': viz_mode_value,
@@ -72,7 +93,7 @@ def generate_launch_description():
                 output='screen',
                 parameters=[
                     LaunchConfiguration('params_file'),
-                    LaunchConfiguration('model_params_file'),
+                    model_params_file,
                     overrides,
                 ],
             )
@@ -125,15 +146,13 @@ def generate_launch_description():
             description='Path to the base parameters file.'
         ),
         DeclareLaunchArgument(
-            'model_params_file',
-            default_value=PathJoinSubstitution([
-                FindPackageShare('std_xela_taxel_viz_2f'),
-                'config',
-                'models',
-                LaunchConfiguration('model_name'),
-                PythonExpression(["'", LaunchConfiguration('viz_mode'), "' + '.yaml'"])
-            ]),
-            description='Path to the model/mode parameters file.'
+            'mount_type',
+            default_value='standalone',
+            description=(
+                'Sensor mount type: standalone (side-by-side, same direction) or '
+                'gripper (module 01 rotated 180deg to face module 02). '
+                'Applies to uSPa44 and uSPa46 only.'
+            )
         ),
         DeclareLaunchArgument(
             'viz_mode',

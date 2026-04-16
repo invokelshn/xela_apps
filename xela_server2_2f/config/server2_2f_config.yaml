@@ -1,10 +1,26 @@
 global:
   frame_prefix: x_taxel
 
-"uSPa22,uSPa44":
-  gen_frame_list: true
-  # taxel_count: 24
-  # gen_model: uSPa46
+"uSPa22,uSPa44,uspa44":
+  gen_frame_list: false
+  # taxel_count is read from JSON "taxels" field (16 for uSPa44)
+  frame_ids:
+    - uSPa44_16_joint
+    - uSPa44_15_joint
+    - uSPa44_14_joint
+    - uSPa44_13_joint
+    - uSPa44_12_joint
+    - uSPa44_11_joint
+    - uSPa44_10_joint
+    - uSPa44_09_joint
+    - uSPa44_08_joint
+    - uSPa44_07_joint
+    - uSPa44_06_joint
+    - uSPa44_05_joint
+    - uSPa44_04_joint
+    - uSPa44_03_joint
+    - uSPa44_02_joint
+    - uSPa44_01_joint
 
 "USPA35":
   gen_frame_list: true

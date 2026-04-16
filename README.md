@@ -23,6 +23,7 @@ source $XELA_WS/install/setup.bash
 | `sim_xela_server` | ROS 2 package | JSON replayer WebSocket server | ws://`<host>`:`<port>` |
 | `xela_server2_2f` | ROS 2 package | 2F JSON -> ROS bridge | `/x_taxel_2f` |
 | `xela_taxel_viz_2f` | ROS 2 package | 2F RViz visualization (grid/urdf) | `/x_taxel_2f/markers` |
+| `std_xela_taxel_viz_2f` | ROS 2 package | 2F RViz visualization — extended model support (uSPa44, uSPa46, mount_type) | `/x_taxel_2f/markers` |
 | `xela_taxel_sidecar_2f` | ROS 2 package | 2F web sidecar (grid/urdf) | `/x_taxel_2f/web_state` |
 | `xela_server2_ah` | ROS 2 package | Allegro JSON -> ROS bridge | `/x_taxel_ah` |
 | `xela_taxel_viz_ahv4` | ROS 2 package | Allegro RViz visualization (grid/urdf/demo) | `/x_taxel_ah/markers` |
@@ -35,7 +36,7 @@ source $XELA_WS/install/setup.bash
 cd $XELA_WS
 colcon build --packages-select \
   sim_xela_server \
-  xela_server2_2f xela_taxel_viz_2f \
+  xela_server2_2f xela_taxel_viz_2f std_xela_taxel_viz_2f \
   xela_server2_ah xela_taxel_viz_ahv4 \
   xela_taxel_sidecar_2f xela_taxel_sidecar_ah
 source $XELA_WS/install/setup.bash
@@ -57,7 +58,8 @@ ros2 launch xela_taxel_viz_2f real_all_svc_xela_taxel_viz_2f.launch.py model_nam
 
 ## 2F Simulation Examples (`*_2f`)
 
-Note: currently available 2F models in this package are `uSPr2F`, `uSPrDS`, and `uSPrHE35`.
+Note: currently available 2F models in `xela_taxel_viz_2f` are `uSPr2F`, `uSPrDS`, and `uSPrHE35`.
+`std_xela_taxel_viz_2f` additionally supports `uSPa44` and `uSPa46` with `mount_type` option.
 
 ### uSPr2F
 
@@ -93,6 +95,30 @@ ros2 launch xela_taxel_viz_2f sim_all_svc_xela_taxel_viz_2f.launch.py model_name
 Grid mode:
 ```bash
 ros2 launch xela_taxel_viz_2f sim_all_svc_xela_taxel_viz_2f.launch.py model_name:=uSPrHE35 style_preset:=cool_steel viz_mode:=grid
+```
+
+### uSPa44 (std_xela_taxel_viz_2f)
+
+Standalone mode (default):
+```bash
+ros2 launch std_xela_taxel_viz_2f sim_all_svc_std_xela_taxel_viz_2f.launch.py viz_model_name:=uSPa44 viz_mode:=grid
+```
+
+Gripper mode:
+```bash
+ros2 launch std_xela_taxel_viz_2f sim_all_svc_std_xela_taxel_viz_2f.launch.py viz_model_name:=uSPa44 viz_mode:=grid mount_type:=gripper
+```
+
+### uSPa46 (std_xela_taxel_viz_2f)
+
+Standalone mode (default):
+```bash
+ros2 launch std_xela_taxel_viz_2f sim_all_svc_std_xela_taxel_viz_2f.launch.py viz_model_name:=uSPa46 viz_mode:=grid
+```
+
+Gripper mode:
+```bash
+ros2 launch std_xela_taxel_viz_2f sim_all_svc_std_xela_taxel_viz_2f.launch.py viz_model_name:=uSPa46 viz_mode:=grid mount_type:=gripper
 ```
 
 ## Allegro Simulation Examples (`*_ah`, `*_ahv4`)
@@ -141,6 +167,7 @@ Package-level docs:
 - `xela_server2_2f/README.md`
 - `xela_server2_ah/README.md`
 - `xela_taxel_viz_2f/README.md`
+- `std_xela_taxel_viz_2f/README.md`
 - `xela_taxel_viz_ahv4/README.md`
 
 Sensor docs:

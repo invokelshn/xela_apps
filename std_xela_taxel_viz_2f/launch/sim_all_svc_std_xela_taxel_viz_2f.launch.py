@@ -1,3 +1,5 @@
+import os
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.conditions import IfCondition
@@ -5,6 +7,9 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from ament_index_python.packages import get_package_share_directory
+
+_MOUNT_TYPE_MODELS = {'uSPa44', 'uSPa46'}
 
 
 def _sidecar_model_overrides(model_name: str):
@@ -29,6 +34,16 @@ def _sidecar_model_overrides(model_name: str):
             'grid_cols': '5',
             **urdf_sign_overrides,
         }
+    if normalized == 'uspa44':
+        return {
+            'grid_rows': '4',
+            'grid_cols': '4',
+        }
+    if normalized == 'uspa46':
+        return {
+            'grid_rows': '4',
+            'grid_cols': '6',
+        }
     return {}
 
 
@@ -45,13 +60,14 @@ def generate_launch_description():
     default_replayer_params = PathJoinSubstitution([replayer_share, 'config', 'replayer_presets.yaml'])
     viz_launch = PathJoinSubstitution([viz_share, 'launch', 'std_xela_taxel_viz_2f.launch.py'])
     sidecar_launch = PathJoinSubstitution([sidecar_share, 'launch', 'xela_taxel_sidecar_cpp.launch.py'])
-    default_model_params_file = PathJoinSubstitution([
-        viz_share,
-        'config',
-        'models',
-        LaunchConfiguration('viz_model_name'),
-        PythonExpression(["'", LaunchConfiguration('viz_mode'), "' + '.yaml'"]),
-    ])
+    def _compute_model_params_file(context):
+        pkg_share = get_package_share_directory('std_xela_taxel_viz_2f')
+        model_name = LaunchConfiguration('viz_model_name').perform(context)
+        viz_mode = LaunchConfiguration('viz_mode').perform(context)
+        mount_type = LaunchConfiguration('mount_type').perform(context)
+        if model_name in _MOUNT_TYPE_MODELS:
+            return os.path.join(pkg_share, 'config', 'models', model_name, mount_type, viz_mode + '.yaml')
+        return os.path.join(pkg_share, 'config', 'models', model_name, viz_mode + '.yaml')
 
     def build_rviz_node(context):
         viz_mode = LaunchConfiguration('viz_mode').perform(context)
@@ -70,6 +86,27 @@ def generate_launch_description():
                     ('/tf', tf_topic),
                     ('/tf_static', tf_static_topic),
                 ],
+            ),
+        ]
+
+    def build_viz_include(context):
+        model_params_file = _compute_model_params_file(context)
+        return [
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(viz_launch),
+                launch_arguments={
+                    'namespace': LaunchConfiguration('namespace').perform(context),
+                    'model_name': LaunchConfiguration('viz_model_name').perform(context),
+                    'viz_mode': LaunchConfiguration('viz_mode').perform(context),
+                    'style_preset': LaunchConfiguration('style_preset').perform(context),
+                    'overlay_grid_in_urdf': LaunchConfiguration('overlay_grid_in_urdf').perform(context),
+                    'joint_states_mode': LaunchConfiguration('joint_states_mode').perform(context),
+                    'frame_prefix': LaunchConfiguration('frame_prefix').perform(context),
+                    'marker_stamp_mode': LaunchConfiguration('marker_stamp_mode').perform(context),
+                    'marker_time_offset_sec': LaunchConfiguration('marker_time_offset_sec').perform(context),
+                    'mount_type': LaunchConfiguration('mount_type').perform(context),
+                    'model_params_file': model_params_file,
+                }.items(),
             ),
         ]
 
@@ -116,7 +153,7 @@ def generate_launch_description():
         DeclareLaunchArgument('frame_prefix', default_value=''),
         DeclareLaunchArgument('marker_stamp_mode', default_value='now'),
         DeclareLaunchArgument('marker_time_offset_sec', default_value='-0.12'),
-        DeclareLaunchArgument('model_params_file', default_value=default_model_params_file),
+        DeclareLaunchArgument('mount_type', default_value='standalone'),
         DeclareLaunchArgument('rviz_config', default_value=''),
 
         DeclareLaunchArgument('server_model_name', default_value=LaunchConfiguration('viz_model_name')),
@@ -162,21 +199,7 @@ def generate_launch_description():
             }.items(),
         ),
 
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(viz_launch),
-            launch_arguments={
-                'namespace': LaunchConfiguration('namespace'),
-                'model_name': LaunchConfiguration('viz_model_name'),
-                'viz_mode': LaunchConfiguration('viz_mode'),
-                'style_preset': LaunchConfiguration('style_preset'),
-                'overlay_grid_in_urdf': LaunchConfiguration('overlay_grid_in_urdf'),
-                'joint_states_mode': LaunchConfiguration('joint_states_mode'),
-                'frame_prefix': LaunchConfiguration('frame_prefix'),
-                'marker_stamp_mode': LaunchConfiguration('marker_stamp_mode'),
-                'marker_time_offset_sec': LaunchConfiguration('marker_time_offset_sec'),
-                'model_params_file': LaunchConfiguration('model_params_file'),
-            }.items(),
-        ),
+        OpaqueFunction(function=build_viz_include),
         OpaqueFunction(function=build_sidecar_include),
 
         OpaqueFunction(function=build_rviz_node),

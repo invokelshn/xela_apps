@@ -13,3 +13,9 @@ device_profiles:
   uSPrDS:
     keep_joints_files:
       - usprds_joint.yaml
+  uSPa46:
+    keep_joints_files:
+      - uspa46_joint.yaml
+  uSPa44:
+    keep_joints_files:
+      - uspa44_joint.yaml

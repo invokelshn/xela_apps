@@ -76,11 +76,35 @@ ros2 launch std_xela_taxel_viz_2f real_all_svc_std_xela_taxel_viz_2f.launch.py \
   viz_model_name:=uSPr2F viz_mode:=urdf joint_states_mode:=local
 ```
 
+### uSPa44 / uSPa46 with `mount_type`
+
+uSPa44 and uSPa46 support `mount_type` to select between standalone (side-by-side) and
+gripper (opposing-finger) configurations. See the [mount_type section](#mount_type-option-uspa44--uspa46) for details.
+
+Standalone (default) — two sensors facing the same direction:
+```bash
+ros2 launch std_xela_taxel_viz_2f std_xela_taxel_viz_2f.launch.py \
+  model_name:=uSPa46 mount_type:=standalone viz_mode:=grid
+```
+
+Gripper — module 01 rotated 180° to face module 02:
+```bash
+ros2 launch std_xela_taxel_viz_2f std_xela_taxel_viz_2f.launch.py \
+  model_name:=uSPa46 mount_type:=gripper viz_mode:=grid
+```
+
+Same options apply to uSPa44:
+```bash
+ros2 launch std_xela_taxel_viz_2f std_xela_taxel_viz_2f.launch.py \
+  model_name:=uSPa44 mount_type:=standalone viz_mode:=grid
+```
+
 ## Launch Arguments
 Common arguments for `std_xela_taxel_viz_2f.launch.py`:
 - `namespace` (default: `xviz2f`)
 - `viz_mode` (default: `grid`)
-- `model_name` (default: `uSPr2F`)
+- `model_name` (default: `uSPr2F`) — supported: `uSPr2F`, `uSPrDS`, `uSPrHE35`, `uSPa46`, `uSPa44`
+- `mount_type` (default: `standalone`) — `standalone` or `gripper`; applies to `uSPa44` and `uSPa46` only
 - `style_preset` (default: `default`)
 - `overlay_grid_in_urdf` (default: `false`)
 - `marker_stamp_mode` (default: `now`)
@@ -167,10 +191,44 @@ Local joint-state publisher parameters:
 ## Configuration
 - Base: `config/base/std_xela_taxel_viz_2f.yaml`
 - Model overrides:
-  - `config/models/<model>/grid.yaml`
+  - `config/models/<model>/grid.yaml` — for uSPr2F, uSPrDS, uSPrHE35
   - `config/models/<model>/urdf.yaml`
+  - `config/models/<model>/<mount_type>/grid.yaml` — for uSPa44, uSPa46 (`standalone` or `gripper`)
+  - `config/models/<model>/<mount_type>/urdf.yaml`
 - Joint list profiles: `config/joints/joint_state_profiles.yaml`
 - RViz configs: `config/rviz/`
+
+## `mount_type` Option (uSPa44 / uSPa46)
+
+The `mount_type` argument controls how the two sensor modules are oriented relative to each other.
+It applies only to `uSPa44` and `uSPa46`.
+
+| `mount_type` | Module 01 orientation | Use case |
+|---|---|---|
+| `standalone` (default) | Same direction as module 02 | Two sensors placed side by side on a flat surface |
+| `gripper` | Rotated 180° to face module 02 | Two sensors mounted on opposing gripper fingers |
+
+**Differences between `standalone` and `gripper`:**
+
+| Setting | `standalone` | `gripper` |
+|---|---|---|
+| URDF module 01 `rz` | 0° | 180° |
+| Module spacing (uSPa46) | 65 mm | 50 mm |
+| Module spacing (uSPa44) | 35 mm | 30 mm |
+| `row_flip_right` / `col_flip_right` | `false` | `true` |
+| Left/right force sign | Symmetric (both `1.0`) | Asymmetric (`-1.0` / `1.0`) |
+
+The config files for each combination are located at:
+```
+config/models/uSPa46/standalone/grid.yaml
+config/models/uSPa46/standalone/urdf.yaml
+config/models/uSPa46/gripper/grid.yaml
+config/models/uSPa46/gripper/urdf.yaml
+config/models/uSPa44/standalone/grid.yaml
+config/models/uSPa44/standalone/urdf.yaml
+config/models/uSPa44/gripper/grid.yaml
+config/models/uSPa44/gripper/urdf.yaml
+```
 
 ## Troubleshooting
 - RViz TF errors: set `marker_stamp_mode:=now` and keep `marker_time_offset_sec` negative.
