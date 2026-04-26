@@ -22,6 +22,7 @@ ament_target_dependencies(xela_taxel_web_bridge_node
   rclcpp
   rcl_interfaces
   std_msgs
+  std_srvs
   tf2
   tf2_ros
   xela_taxel_msgs

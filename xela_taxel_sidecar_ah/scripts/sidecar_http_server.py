@@ -71,7 +71,24 @@ class SidecarRequestHandler(SimpleHTTPRequestHandler):
             self._serve_package_asset(path)
             return
 
+        if path == "/sidecar_runtime_defaults.js":
+            self._serve_runtime_defaults()
+            return
+
         super().do_GET()
+
+    def _serve_runtime_defaults(self):
+        # Injects the AH sim server node name into the page.
+        # Uses XELA_AH_SIM_SERVER_NODE (not XELA_SIM_SERVER_NODE) to avoid
+        # conflicting with xela_taxel_sidecar_2f when both run simultaneously.
+        sim_node = getattr(self, "_sim_server_node", "") or ""
+        js = f"window.XELA_AH_SIM_SERVER_NODE = {repr(sim_node)};\n"
+        data = js.encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/javascript; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def end_headers(self):
         # Disable browser caching so web UI updates are immediately visible during development.
@@ -132,12 +149,20 @@ def parse_args():
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--web-root", required=True)
+    parser.add_argument(
+        "--sim-server-node",
+        default="",
+        help="ROS node name of xela_atag_mock_server (without leading slash). "
+             "When set, the Simulate toolbar is shown in the sidecar web UI.",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     handler = partial(SidecarRequestHandler, web_root=args.web_root)
+    # Inject sim_server_node into each request handler instance.
+    SidecarRequestHandler._sim_server_node = args.sim_server_node
     server = ThreadingHTTPServer((args.host, args.port), handler)
     print(f"Serving sidecar web root: {Path(args.web_root).resolve()}")
     print(f"Serving package assets at: /pkg/<package>/<path>")

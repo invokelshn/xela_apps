@@ -18,7 +18,9 @@
 
 #include <rcl_interfaces/msg/set_parameters_result.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/empty.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <tf2/exceptions.h>
 #include <tf2/time.h>
 #include <tf2_ros/buffer.h>
@@ -222,6 +224,36 @@ public:
     }
     on_set_parameters_handle_ = this->add_on_set_parameters_callback(
       std::bind(&XelaTaxelWebBridgeAhNode::on_set_parameters, this, std::placeholders::_1));
+
+    recalibrate_sub_ = this->create_subscription<std_msgs::msg::Empty>(
+      "/xela_atag_recalibrate",
+      rclcpp::QoS(1).reliable(),
+      [this](const std_msgs::msg::Empty::SharedPtr /*msg*/) {
+        baseline_.ready = false;
+        baseline_.started = false;
+        baseline_.force_samples = 0;
+        baseline_.taxel_samples = 0;
+        std::fill(baseline_.force_sum.begin(), baseline_.force_sum.end(), Vec3{});
+        std::fill(baseline_.taxel_sum.begin(), baseline_.taxel_sum.end(), Vec3{});
+        RCLCPP_INFO(this->get_logger(), "Baseline reset via /xela_atag_recalibrate topic.");
+      });
+
+    reset_baseline_srv_ = this->create_service<std_srvs::srv::Trigger>(
+      "reset_baseline",
+      [this](
+        const std_srvs::srv::Trigger::Request::SharedPtr /*req*/,
+        std_srvs::srv::Trigger::Response::SharedPtr resp)
+      {
+        baseline_.ready = false;
+        baseline_.started = false;
+        baseline_.force_samples = 0;
+        baseline_.taxel_samples = 0;
+        std::fill(baseline_.force_sum.begin(), baseline_.force_sum.end(), Vec3{});
+        std::fill(baseline_.taxel_sum.begin(), baseline_.taxel_sum.end(), Vec3{});
+        RCLCPP_INFO(this->get_logger(), "Baseline reset by service call.");
+        resp->success = true;
+        resp->message = "Baseline reset.";
+      });
 
     last_publish_steady_ = std::chrono::steady_clock::now();
 
@@ -1434,8 +1466,10 @@ private:
 
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_;
   rclcpp::Subscription<xela_taxel_msgs::msg::XTaxelSensorTArray>::SharedPtr sub_;
+  rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr recalibrate_sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr slip_diagnostics_sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr grasp_event_sub_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_baseline_srv_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_parameters_handle_;
 };
 

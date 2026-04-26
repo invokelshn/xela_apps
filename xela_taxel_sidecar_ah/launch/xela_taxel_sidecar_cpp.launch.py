@@ -115,7 +115,9 @@ def generate_launch_description() -> LaunchDescription:
             "--port",
             LaunchConfiguration("web_port"),
             "--web-root",
-            web_root
+            web_root,
+            "--sim-server-node",
+            LaunchConfiguration("sim_server_node"),
         ],
         output="screen",
         condition=IfCondition(LaunchConfiguration("enable_web_server")),
@@ -184,6 +186,13 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("enable_sidecar_rosbridge", default_value="true"),
         DeclareLaunchArgument("sidecar_rosbridge_host", default_value="0.0.0.0"),
         DeclareLaunchArgument("sidecar_rosbridge_port", default_value="9090"),
+        DeclareLaunchArgument(
+            "sim_server_node",
+            default_value="",
+            description="ROS node name of xela_atag_mock_server (without leading slash). "
+                        "When set, the Simulate toolbar is shown in the sidecar web UI. "
+                        "Example: xela_atag_mock_server",
+        ),
         OpaqueFunction(function=_resolve_hand_params),
         sidecar_rosbridge,
         bridge_node,
