@@ -1,5 +1,6 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
+                            OpaqueFunction, SetLaunchConfiguration, TimerAction)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
@@ -7,13 +8,20 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    ah_share = FindPackageShare('xela_server2_ah')
     replayer_share = FindPackageShare('sim_xela_server')
     viz_share = FindPackageShare('xela_taxel_viz_ahv4')
 
-    default_frame_ids = PathJoinSubstitution([ah_share, 'config', 'server2_ah_config.yaml'])
     default_replayer_params = PathJoinSubstitution([replayer_share, 'config', 'replayer_presets.yaml'])
-    default_mapping = PathJoinSubstitution([viz_share, 'config', 'taxel_joint_map_new.yaml'])
+
+    def select_hand_side(context):
+        model_name = LaunchConfiguration('model_name').perform(context).strip()
+        hand_side_override = LaunchConfiguration('hand_side').perform(context).strip()
+        hand_side = hand_side_override or (
+            'right' if model_name in ('XR23AHRCPP', 'XR23AHRCPP_right') else 'left'
+        )
+        return [SetLaunchConfiguration('hand_side', hand_side)]
+    server_share = FindPackageShare('xela_server2_ah')
+    default_mapping = PathJoinSubstitution([server_share, 'config', 'l_server_model_joint_map.yaml'])
     default_pattern = PathJoinSubstitution([viz_share, 'config', 'pattern_lahv4.yaml'])
     default_viz_launch = PathJoinSubstitution([viz_share, 'launch', 'xela_taxel_viz_ahv4.launch.py'])
     default_viz_urdf = PathJoinSubstitution([viz_share, 'description', 'xela_uSCuAH_0_modules.xacro'])
@@ -45,10 +53,11 @@ def generate_launch_description():
             description='WebSocket client port (xela_server2_ah_node).',
         ),
         DeclareLaunchArgument(
-            'frame_ids_yaml',
-            default_value=default_frame_ids,
-            description='Path to server2_ah_config.yaml',
+            'hand_side',
+            default_value='',
+            description='Hand side for frame_id prefix: left or right.',
         ),
+        OpaqueFunction(function=select_hand_side),
         DeclareLaunchArgument(
             'warmup_sec',
             default_value='5.0',
@@ -77,7 +86,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'viz_mapping_yaml',
             default_value=default_mapping,
-            description='Path to taxel_joint_map_new.yaml for visualization.',
+            description='Path to server mapping YAML (l_ or r_server_model_joint_map.yaml).',
         ),
         DeclareLaunchArgument(
             'viz_pattern_yaml',
@@ -148,7 +157,7 @@ def generate_launch_description():
                     parameters=[{
                         'ws_host': LaunchConfiguration('ws_host'),
                         'ws_port': LaunchConfiguration('ws_port'),
-                        'frame_ids_yaml': LaunchConfiguration('frame_ids_yaml'),
+                        'hand_side': LaunchConfiguration('hand_side'),
                     }],
                 ),
             ],

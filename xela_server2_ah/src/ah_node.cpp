@@ -89,7 +89,7 @@ bool ResolveMappingYaml(const std::string &frame_ids_yaml,
     YAML::Node root = YAML::LoadFile(frame_ids_yaml);
     if (root["mapping_yaml"]) {
       mapping_yaml = root["mapping_yaml"].as<std::string>();
-    } else if (root["taxel_joint_map"]) {
+    } else if (root["taxel_joint_map"] || root["server_model_joint_map"]) {
       mapping_yaml = frame_ids_yaml;
     } else {
       error = "missing mapping_yaml in config";
@@ -119,20 +119,26 @@ bool ResolveMappingYaml(const std::string &frame_ids_yaml,
 class XelaServer2AhNode : public rclcpp::Node {
  public:
   XelaServer2AhNode() : Node("xela_server2_ah"), running_(true) {
+    ws_host_ = declare_parameter<std::string>("ws_host", "localhost");
+    ws_port_ = declare_parameter<int>("ws_port", 5000);
+    hand_side_ = declare_parameter<std::string>("hand_side", "left");
+
+    const std::string map_file =
+        (hand_side_ == "right" || hand_side_ == "r")
+            ? "r_server_model_joint_map.yaml"
+            : "l_server_model_joint_map.yaml";
+
     std::string default_frame_ids;
     try {
       default_frame_ids = ament_index_cpp::get_package_share_directory("xela_server2_ah");
-      default_frame_ids += "/config/server2_ah_config.yaml";
+      default_frame_ids += "/config/" + map_file;
     } catch (const std::exception &e) {
       RCLCPP_WARN(get_logger(), "Failed to locate xela_server2_ah share: %s", e.what());
       std::filesystem::path source_root = std::filesystem::path(__FILE__).parent_path().parent_path();
-      default_frame_ids = (source_root / "config" / "server2_ah_config.yaml").string();
+      default_frame_ids = (source_root / "config" / map_file).string();
     }
 
-    ws_host_ = declare_parameter<std::string>("ws_host", "localhost");
-    ws_port_ = declare_parameter<int>("ws_port", 5000);
     frame_ids_yaml_ = declare_parameter<std::string>("frame_ids_yaml", default_frame_ids);
-    hand_side_ = declare_parameter<std::string>("hand_side", "left");
     header_frame_id_ = declare_parameter<std::string>("header_frame_id", "");
     use_ros_time_for_sensor_time_ =
         declare_parameter<bool>("use_ros_time_for_sensor_time", false);
@@ -150,7 +156,6 @@ class XelaServer2AhNode : public rclcpp::Node {
     } else if (!LoadJointMap(mapping_yaml, joint_map_, mapping_error)) {
       RCLCPP_ERROR(get_logger(), "Failed to load joint map: %s", mapping_error.c_str());
     } else {
-      ApplyHandSideToJointMap(joint_map_, hand_side_);
       RCLCPP_INFO(get_logger(), "Loaded %zu joints (%zu modules) from %s",
                   joint_map_.flat.size(), joint_map_.modules.size(), mapping_yaml.c_str());
     }

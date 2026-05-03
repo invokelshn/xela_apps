@@ -11,35 +11,17 @@ import yaml
 
 
 def generate_launch_description():
-    params_file = PathJoinSubstitution([
-        FindPackageShare('xela_taxel_viz_ahv4'),
-        'config',
-        'xela_taxel_viz_ahv4.yaml'
-    ])
+    viz_share = FindPackageShare('xela_taxel_viz_ahv4')
+    server_share = FindPackageShare('xela_server2_ah')
 
-    mapping_yaml = PathJoinSubstitution([
-        FindPackageShare('xela_taxel_viz_ahv4'),
-        'config',
-        'taxel_joint_map_new.yaml'
-    ])
+    params_file = PathJoinSubstitution([viz_share, 'config', 'xela_taxel_viz_ahv4.yaml'])
 
-    pattern_yaml = PathJoinSubstitution([
-        FindPackageShare('xela_taxel_viz_ahv4'),
-        'config',
-        'pattern_lahv4.yaml'
-    ])
+    mapping_left = PathJoinSubstitution([server_share, 'config', 'l_server_model_joint_map.yaml'])
+    mapping_right = PathJoinSubstitution([server_share, 'config', 'r_server_model_joint_map.yaml'])
 
-    urdf_xacro = PathJoinSubstitution([
-        FindPackageShare('xela_taxel_viz_ahv4'),
-        'description',
-        'xela_uSCuAH_0_modules.xacro'
-    ])
-
-    ros2_controller_yaml = PathJoinSubstitution([
-        FindPackageShare('xela_taxel_viz_ahv4'),
-        'config',
-        'ros2_controller_xela_taxel_viz_ahv4.yaml'
-    ])
+    pattern_yaml = PathJoinSubstitution([viz_share, 'config', 'pattern_lahv4.yaml'])
+    urdf_xacro = PathJoinSubstitution([viz_share, 'description', 'xela_uSCuAH_0_modules.xacro'])
+    ros2_controller_yaml = PathJoinSubstitution([viz_share, 'config', 'ros2_controller_xela_taxel_viz_ahv4.yaml'])
 
     urdf_mode = PythonExpression(["'", LaunchConfiguration('viz_mode'), "' == 'urdf'"])
     use_hand_controllers = PythonExpression(
@@ -158,8 +140,8 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'mapping_yaml',
-            default_value=mapping_yaml,
-            description='Path to taxel_joint_map_new.yaml.'
+            default_value=mapping_left,
+            description='Path to server mapping YAML (l_ or r_server_model_joint_map.yaml).'
         ),
         DeclareLaunchArgument(
             'hand_side',

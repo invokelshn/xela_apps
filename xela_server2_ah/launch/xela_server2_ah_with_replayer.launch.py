@@ -7,9 +7,7 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    ah_share = FindPackageShare('xela_server2_ah')
     replayer_share = FindPackageShare('sim_xela_server')
-    default_frame_ids = PathJoinSubstitution([ah_share, 'config', 'server2_ah_config.yaml'])
     default_replayer_params = PathJoinSubstitution([replayer_share, 'config', 'replayer_presets.yaml'])
 
     def select_hand_side(context):
@@ -47,11 +45,6 @@ def generate_launch_description():
             'ws_port',
             default_value='5000',
             description='WebSocket client port (xela_server2_ah_node).',
-        ),
-        DeclareLaunchArgument(
-            'frame_ids_yaml',
-            default_value=default_frame_ids,
-            description='Path to server2_ah_config.yaml',
         ),
         DeclareLaunchArgument(
             'warmup_sec',
@@ -113,7 +106,6 @@ def generate_launch_description():
                     parameters=[{
                         'ws_host': LaunchConfiguration('ws_host'),
                         'ws_port': LaunchConfiguration('ws_port'),
-                        'frame_ids_yaml': LaunchConfiguration('frame_ids_yaml'),
                         'hand_side': LaunchConfiguration('hand_side'),
                     }],
                 ),

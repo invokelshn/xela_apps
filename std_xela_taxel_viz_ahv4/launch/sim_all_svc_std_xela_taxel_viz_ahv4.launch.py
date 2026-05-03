@@ -17,7 +17,6 @@ def generate_launch_description():
     rviz_grid_cfg = PathJoinSubstitution([viz_share, 'config', 'rviz', 'grid_xela_taxel_viz_ah.rviz'])
     rviz_urdf_cfg = PathJoinSubstitution([viz_share, 'config', 'rviz', 'urdf_xela_taxel_viz_ah.rviz'])
     server_launch = PathJoinSubstitution([server_share, 'launch', 'xela_server2_ah_with_replayer.launch.py'])
-    default_frame_ids = PathJoinSubstitution([server_share, 'config', 'server2_ah_config.yaml'])
     default_replayer_params = PathJoinSubstitution([replayer_share, 'config', 'replayer_presets.yaml'])
     viz_launch = PathJoinSubstitution([viz_share, 'launch', 'std_xela_taxel_viz_ahv4.launch.py'])
     sidecar_launch = PathJoinSubstitution([sidecar_share, 'launch', 'xela_taxel_sidecar_cpp.launch.py'])
@@ -25,7 +24,8 @@ def generate_launch_description():
     urdf_right = PathJoinSubstitution([viz_share, 'description', 'xela_uSCuAH_1_modules.xacro'])
     pattern_left = PathJoinSubstitution([viz_share, 'config', 'patterns', 'pattern_lahv4.yaml'])
     pattern_right = PathJoinSubstitution([viz_share, 'config', 'patterns', 'pattern_rahv4.yaml'])
-    mapping_default = PathJoinSubstitution([viz_share, 'config', 'maps', 'taxel_joint_map_new.yaml'])
+    mapping_left = PathJoinSubstitution([server_share, 'config', 'l_server_model_joint_map.yaml'])
+    mapping_right = PathJoinSubstitution([server_share, 'config', 'r_server_model_joint_map.yaml'])
 
     def build_rviz_node(context):
         cfg_override = LaunchConfiguration('rviz_config').perform(context).strip()
@@ -93,7 +93,7 @@ def generate_launch_description():
         urdf_path = urdf_override or (urdf_right if is_right else urdf_left)
         sequence = seq_override or ('1' if is_right else '0')
         pattern_path = pattern_override or (pattern_right if is_right else pattern_left)
-        mapping_path = mapping_override or mapping_default
+        mapping_path = mapping_override or (mapping_right if is_right else mapping_left)
         hand_side = hand_side_override or ('right' if is_right else 'left')
         jsp_profile = 'uSCuAH_right' if hand_side == 'right' else 'uSCuAH_left'
 
@@ -136,7 +136,6 @@ def generate_launch_description():
         DeclareLaunchArgument('bind_port', default_value='5000'),
         DeclareLaunchArgument('ws_host', default_value='localhost'),
         DeclareLaunchArgument('ws_port', default_value='5000'),
-        DeclareLaunchArgument('frame_ids_yaml', default_value=default_frame_ids),
         DeclareLaunchArgument('warmup_sec', default_value='5.0'),
         DeclareLaunchArgument('preset', default_value='normal'),
         DeclareLaunchArgument('publish_period_ms', default_value='200'),
@@ -156,7 +155,6 @@ def generate_launch_description():
                 'bind_port': LaunchConfiguration('bind_port'),
                 'ws_host': LaunchConfiguration('ws_host'),
                 'ws_port': LaunchConfiguration('ws_port'),
-                'frame_ids_yaml': LaunchConfiguration('frame_ids_yaml'),
                 'warmup_sec': LaunchConfiguration('warmup_sec'),
                 'preset': LaunchConfiguration('preset'),
                 'publish_period_ms': LaunchConfiguration('publish_period_ms'),

@@ -21,8 +21,8 @@ def _resolve_hand_params(context):
     pattern_override = LaunchConfiguration("pattern_yaml").perform(context).strip()
     mapping_override = LaunchConfiguration("mapping_yaml").perform(context).strip()
 
-    std_share = FindPackageShare("std_xela_taxel_viz_ahv4").perform(context)
-    default_mapping = f"{std_share}/config/maps/taxel_joint_map_new.yaml"
+    server_share = FindPackageShare("xela_server2_ah").perform(context)
+    default_mapping = f"{server_share}/config/l_server_model_joint_map.yaml"
     default_pattern = (
         f"{std_share}/config/patterns/pattern_rahv4.yaml"
         if hand_side == "right"
