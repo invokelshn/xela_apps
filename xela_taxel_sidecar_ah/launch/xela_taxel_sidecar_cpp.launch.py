@@ -22,6 +22,7 @@ def _resolve_hand_params(context):
     mapping_override = LaunchConfiguration("mapping_yaml").perform(context).strip()
 
     server_share = FindPackageShare("xela_server2_ah").perform(context)
+    std_share = FindPackageShare("std_xela_taxel_viz_ahv4").perform(context)
     default_mapping = f"{server_share}/config/l_server_model_joint_map.yaml"
     default_pattern = (
         f"{std_share}/config/patterns/pattern_rahv4.yaml"
