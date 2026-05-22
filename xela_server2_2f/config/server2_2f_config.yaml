@@ -1,7 +1,7 @@
 global:
   frame_prefix: x_taxel
 
-"uSPa22,uSPa44,uspa44":
+"uSPa22,uSPa44,uspa44,USPA44":
   gen_frame_list: false
   # taxel_count is read from JSON "taxels" field (16 for uSPa44)
   frame_ids:
