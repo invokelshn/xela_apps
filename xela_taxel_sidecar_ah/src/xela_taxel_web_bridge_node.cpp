@@ -231,8 +231,8 @@ public:
       [this](const std_msgs::msg::Empty::SharedPtr /*msg*/) {
         baseline_.ready = false;
         baseline_.started = false;
-        baseline_.force_samples = 0;
-        baseline_.taxel_samples = 0;
+        std::fill(baseline_.force_counts.begin(), baseline_.force_counts.end(), 0u);
+        std::fill(baseline_.taxel_counts.begin(), baseline_.taxel_counts.end(), 0u);
         std::fill(baseline_.force_sum.begin(), baseline_.force_sum.end(), Vec3{});
         std::fill(baseline_.taxel_sum.begin(), baseline_.taxel_sum.end(), Vec3{});
         RCLCPP_INFO(this->get_logger(), "Baseline reset via /xela_atag_recalibrate topic.");
@@ -246,8 +246,8 @@ public:
       {
         baseline_.ready = false;
         baseline_.started = false;
-        baseline_.force_samples = 0;
-        baseline_.taxel_samples = 0;
+        std::fill(baseline_.force_counts.begin(), baseline_.force_counts.end(), 0u);
+        std::fill(baseline_.taxel_counts.begin(), baseline_.taxel_counts.end(), 0u);
         std::fill(baseline_.force_sum.begin(), baseline_.force_sum.end(), Vec3{});
         std::fill(baseline_.taxel_sum.begin(), baseline_.taxel_sum.end(), Vec3{});
         RCLCPP_INFO(this->get_logger(), "Baseline reset by service call.");
@@ -322,8 +322,8 @@ private:
     bool ready{false};
     bool started{false};
     std::chrono::steady_clock::time_point start;
-    std::size_t force_samples{0};
-    std::size_t taxel_samples{0};
+    std::vector<std::size_t> force_counts;  // per-sensor sample count
+    std::vector<std::size_t> taxel_counts;  // per-sensor sample count
     std::vector<Vec3> force_sum;
     std::vector<Vec3> taxel_sum;
     std::vector<Vec3> force_base;
@@ -743,8 +743,8 @@ private:
     }
     baseline_.ready = false;
     baseline_.started = false;
-    baseline_.force_samples = 0;
-    baseline_.taxel_samples = 0;
+    baseline_.force_counts.assign(size, 0u);
+    baseline_.taxel_counts.assign(size, 0u);
     baseline_.force_sum.assign(size, {});
     baseline_.taxel_sum.assign(size, {});
     baseline_.force_base.assign(size, {});
@@ -778,8 +778,6 @@ private:
     }
 
     if (elapsed <= baseline_duration_sec_) {
-      bool saw_force = false;
-      bool saw_taxel = false;
       for (std::size_t idx = 0; idx < current.size(); ++idx) {
         if (!present[idx]) {
           continue;
@@ -788,41 +786,31 @@ private:
           baseline_.taxel_sum[idx].x += current[idx].x;
           baseline_.taxel_sum[idx].y += current[idx].y;
           baseline_.taxel_sum[idx].z += current[idx].z;
-          saw_taxel = true;
+          baseline_.taxel_counts[idx] += 1u;
         } else {
           baseline_.force_sum[idx].x += current[idx].x;
           baseline_.force_sum[idx].y += current[idx].y;
           baseline_.force_sum[idx].z += current[idx].z;
-          saw_force = true;
+          baseline_.force_counts[idx] += 1u;
         }
-      }
-      if (saw_force) {
-        baseline_.force_samples += 1;
-      }
-      if (saw_taxel) {
-        baseline_.taxel_samples += 1;
       }
     }
 
     if (elapsed >= baseline_duration_sec_) {
-      if (baseline_.force_samples > 0) {
-        for (std::size_t idx = 0; idx < baseline_.force_base.size(); ++idx) {
-          baseline_.force_base[idx].x =
-            baseline_.force_sum[idx].x / static_cast<double>(baseline_.force_samples);
-          baseline_.force_base[idx].y =
-            baseline_.force_sum[idx].y / static_cast<double>(baseline_.force_samples);
-          baseline_.force_base[idx].z =
-            baseline_.force_sum[idx].z / static_cast<double>(baseline_.force_samples);
+      for (std::size_t idx = 0; idx < baseline_.force_base.size(); ++idx) {
+        if (baseline_.force_counts[idx] > 0) {
+          const double n = static_cast<double>(baseline_.force_counts[idx]);
+          baseline_.force_base[idx].x = baseline_.force_sum[idx].x / n;
+          baseline_.force_base[idx].y = baseline_.force_sum[idx].y / n;
+          baseline_.force_base[idx].z = baseline_.force_sum[idx].z / n;
         }
       }
-      if (baseline_.taxel_samples > 0) {
-        for (std::size_t idx = 0; idx < baseline_.taxel_base.size(); ++idx) {
-          baseline_.taxel_base[idx].x =
-            baseline_.taxel_sum[idx].x / static_cast<double>(baseline_.taxel_samples);
-          baseline_.taxel_base[idx].y =
-            baseline_.taxel_sum[idx].y / static_cast<double>(baseline_.taxel_samples);
-          baseline_.taxel_base[idx].z =
-            baseline_.taxel_sum[idx].z / static_cast<double>(baseline_.taxel_samples);
+      for (std::size_t idx = 0; idx < baseline_.taxel_base.size(); ++idx) {
+        if (baseline_.taxel_counts[idx] > 0) {
+          const double n = static_cast<double>(baseline_.taxel_counts[idx]);
+          baseline_.taxel_base[idx].x = baseline_.taxel_sum[idx].x / n;
+          baseline_.taxel_base[idx].y = baseline_.taxel_sum[idx].y / n;
+          baseline_.taxel_base[idx].z = baseline_.taxel_sum[idx].z / n;
         }
       }
       baseline_.ready = true;
@@ -1243,7 +1231,8 @@ private:
     json << "\"xy_force_range\":" << effective_xy_range << ",";
     json << "\"z_force_range\":" << effective_z_range << ",";
     json << "\"use_fz_only\":" << (use_fz_only_ ? "true" : "false") << ",";
-    json << "\"force_scale\":" << force_scale_;
+    json << "\"force_scale\":" << force_scale_ << ",";
+    json << "\"baseline_ready\":" << (baseline_.ready ? "true" : "false");
     if (has_slip) {
       json << ",\"slip\":" << slip_json;
       json << ",\"slip_age_ms\":" << slip_age_ms;

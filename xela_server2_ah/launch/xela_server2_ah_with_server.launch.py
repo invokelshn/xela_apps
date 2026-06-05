@@ -10,8 +10,6 @@ from launch.actions import RegisterEventHandler
 from launch.actions import TimerAction
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import LaunchConfiguration
-from launch.substitutions import PythonExpression
-from launch.substitutions import TextSubstitution
 from launch_ros.actions import Node
 
 
@@ -77,33 +75,41 @@ def _on_can_init_exit(event, context):
     ]
 
 
+def _launch_can_init(context, *args, **kwargs):
+    port0 = LaunchConfiguration("can_port").perform(context)
+    port1 = LaunchConfiguration("can_port_1").perform(context)
+
+    def _can_up_cmd(port):
+        return (
+            f"sudo ip link set {port} down"
+            f" && sudo ip link set {port} type can bitrate 1000000"
+            f" && sudo ip link set {port} up"
+        )
+
+    cmd = _can_up_cmd(port0)
+    if port1:
+        cmd += f" && {_can_up_cmd(port1)}"
+
+    init_can = ExecuteProcess(cmd=["bash", "-lc", cmd], output="screen")
+
+    return [
+        init_can,
+        RegisterEventHandler(
+            OnProcessExit(
+                target_action=init_can,
+                on_exit=_on_can_init_exit,
+            )
+        ),
+    ]
+
+
 def generate_launch_description():
-    can_port = LaunchConfiguration("can_port")
-    can_command = PythonExpression(
-        [
-            TextSubstitution(text="'sudo ip link set ' + '"),
-            can_port,
-            TextSubstitution(text="' + ' down && sudo ip link set ' + '"),
-            can_port,
-            TextSubstitution(text="' + ' type can bitrate 1000000 && sudo ip link set ' + '"),
-            can_port,
-            TextSubstitution(text="' + ' up'"),
-        ]
-    )
-
-    init_can = ExecuteProcess(
-        cmd=[
-            "bash",
-            "-lc",
-            can_command,
-        ],
-        output="screen",
-    )
-
     return LaunchDescription(
         [
             DeclareLaunchArgument("can_port", default_value="can1",
-                                  description="CAN interface for Xela taxel sensors (e.g. can1)"),
+                                  description="Primary CAN interface for Xela taxel sensors (e.g. mcan0)"),
+            DeclareLaunchArgument("can_port_1", default_value="",
+                                  description="Secondary CAN interface for Xela taxel sensors (e.g. mcan1); leave empty if unused"),
             DeclareLaunchArgument("ws_host", default_value="localhost",
                                   description="WebSocket host where xela_server publishes data"),
             DeclareLaunchArgument("ws_port", default_value="5000",
@@ -118,12 +124,6 @@ def generate_launch_description():
             DeclareLaunchArgument("playback_loop", default_value="true"),
             DeclareLaunchArgument("xela_server_exec", default_value="/etc/xela/xela_server",
                                   description="Path to xela_server binary that talks to taxel CAN"),
-            init_can,
-            RegisterEventHandler(
-                OnProcessExit(
-                    target_action=init_can,
-                    on_exit=_on_can_init_exit,
-                )
-            ),
+            OpaqueFunction(function=_launch_can_init),
         ]
     )
