@@ -459,6 +459,12 @@
         <button class="mode-btn" id="analysisBtn">Analysis</button>
       </div>
       <div class="btn-group-sep"></div>
+      <!-- Sensor view group -->
+      <div class="btn-group">
+        <button class="mode-btn active" id="sensorViewAllBtn" title="모든 센서 모듈 표시 (BT 필터 무시)">AllSensors</button>
+        <button class="mode-btn" id="sensorViewActiveBtn" title="BT/페이로드에서 활성화된 센서 모듈만 표시">ActiveOnly</button>
+      </div>
+      <div class="btn-group-sep"></div>
       <!-- Simulate group -->
       <button class="mode-btn" id="simBtn" style="display:none">Simulate</button>
       <!-- Simulate sub-toolbar: visible when Simulate is toggled on -->
@@ -1864,6 +1870,9 @@
 
       function computeActiveModuleIds(payload) {
         const uiEnabledModules = collectEnabledModuleIdsFromUi();
+        if (state.sensorViewMode === "all") {
+          return uiEnabledModules;
+        }
         const visibleModules = collectVisibleModuleIdsFromPayload(payload);
         if (visibleModules.size > 0) {
           return visibleModules;
@@ -3075,6 +3084,24 @@
         setFollowCamEnabled(!followCamState.enabled);
       });
       analysisBtn?.addEventListener("click", () => setAnalysisVisible(!analysisState.visible));
+
+      const sensorViewAllBtn = document.getElementById("sensorViewAllBtn");
+      const sensorViewActiveBtn = document.getElementById("sensorViewActiveBtn");
+      function setSensorViewMode(mode) {
+        state.sensorViewMode = mode;
+        sensorViewAllBtn?.classList.toggle("active", mode === "all");
+        sensorViewActiveBtn?.classList.toggle("active", mode === "active");
+        state.urdfMesh.lastHighlightSignature = "";
+        refreshUrdfModuleHighlight(state.payload);
+        const showAll = mode === "all";
+        rosbridgeClient.sendServiceRequest(
+          `${runtimeConfig.bridgeNodeName}/set_parameters`,
+          { parameters: [{ name: "show_all_modules", value: { type: 1, bool_value: showAll } }] }
+        );
+      }
+      sensorViewAllBtn?.addEventListener("click", () => setSensorViewMode("all"));
+      sensorViewActiveBtn?.addEventListener("click", () => setSensorViewMode("active"));
+
       rebaselineBtn?.addEventListener("click", () => {
         if (!state.connected) return;
         rosbridgeClient.sendServiceRequest("reset_baseline", {});

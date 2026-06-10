@@ -210,6 +210,11 @@ public:
     sub_ = this->create_subscription<xela_taxel_msgs::msg::XTaxelSensorTArray>(
       in_topic_, 10,
       std::bind(&XelaTaxelWebBridgeAhNode::on_taxel_array, this, std::placeholders::_1));
+    if (!full_in_topic_.empty() && full_in_topic_ != in_topic_) {
+      full_sub_ = this->create_subscription<xela_taxel_msgs::msg::XTaxelSensorTArray>(
+        full_in_topic_, 10,
+        std::bind(&XelaTaxelWebBridgeAhNode::on_full_taxel_array, this, std::placeholders::_1));
+    }
     if (include_slip_meta_) {
       slip_diagnostics_sub_ = this->create_subscription<std_msgs::msg::String>(
         slip_diagnostics_topic_,
@@ -386,6 +391,9 @@ private:
     this->declare_parameter<bool>("include_grasp_event_meta", true);
     this->declare_parameter<std::string>("grasp_event_topic", "/atag/grasp_event");
     this->declare_parameter<double>("grasp_event_timeout_sec", 3.0);
+
+    this->declare_parameter<std::string>("full_in_topic", "/x_taxel_ah");
+    this->declare_parameter<bool>("show_all_modules", false);
   }
 
   std::string get_string_param(const std::string & name, const std::string & fallback)
@@ -501,6 +509,9 @@ private:
     include_grasp_event_meta_ = get_bool_param("include_grasp_event_meta", true);
     grasp_event_topic_ = get_string_param("grasp_event_topic", "/atag/grasp_event");
     grasp_event_timeout_sec_ = std::max(0.0, get_double_param("grasp_event_timeout_sec", 3.0));
+
+    full_in_topic_ = get_string_param("full_in_topic", "/x_taxel_ah");
+    show_all_modules_ = get_bool_param("show_all_modules", false);
 
     resolved_hand_side_ = resolve_hand_side();
   }
@@ -946,6 +957,18 @@ private:
 
   void on_taxel_array(const xela_taxel_msgs::msg::XTaxelSensorTArray::SharedPtr msg)
   {
+    if (show_all_modules_) return;
+    process_and_publish(msg);
+  }
+
+  void on_full_taxel_array(const xela_taxel_msgs::msg::XTaxelSensorTArray::SharedPtr msg)
+  {
+    if (!show_all_modules_) return;
+    process_and_publish(msg);
+  }
+
+  void process_and_publish(const xela_taxel_msgs::msg::XTaxelSensorTArray::SharedPtr msg)
+  {
     if (data_size_ == 0) {
       return;
     }
@@ -1359,6 +1382,14 @@ private:
           return result;
         }
         fixed_frame_ = param.as_string();
+      } else if (name == "show_all_modules") {
+        bool value = show_all_modules_;
+        if (!parameter_to_bool(param, value)) {
+          result.successful = false;
+          result.reason = "show_all_modules must be bool-compatible";
+          return result;
+        }
+        show_all_modules_ = value;
       }
     }
 
@@ -1453,8 +1484,12 @@ private:
   std::string latest_grasp_event_json_;
   rclcpp::Time latest_grasp_event_stamp_{0, 0, RCL_ROS_TIME};
 
+  bool show_all_modules_{false};
+  std::string full_in_topic_{"/x_taxel_ah"};
+
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_;
   rclcpp::Subscription<xela_taxel_msgs::msg::XTaxelSensorTArray>::SharedPtr sub_;
+  rclcpp::Subscription<xela_taxel_msgs::msg::XTaxelSensorTArray>::SharedPtr full_sub_;
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr recalibrate_sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr slip_diagnostics_sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr grasp_event_sub_;
