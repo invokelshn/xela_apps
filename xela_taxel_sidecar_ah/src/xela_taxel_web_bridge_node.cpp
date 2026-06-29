@@ -18,7 +18,9 @@
 
 #include <rcl_interfaces/msg/set_parameters_result.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/empty.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <tf2/exceptions.h>
 #include <tf2/time.h>
 #include <tf2_ros/buffer.h>
@@ -208,6 +210,11 @@ public:
     sub_ = this->create_subscription<xela_taxel_msgs::msg::XTaxelSensorTArray>(
       in_topic_, 10,
       std::bind(&XelaTaxelWebBridgeAhNode::on_taxel_array, this, std::placeholders::_1));
+    if (!full_in_topic_.empty() && full_in_topic_ != in_topic_) {
+      full_sub_ = this->create_subscription<xela_taxel_msgs::msg::XTaxelSensorTArray>(
+        full_in_topic_, 10,
+        std::bind(&XelaTaxelWebBridgeAhNode::on_full_taxel_array, this, std::placeholders::_1));
+    }
     if (include_slip_meta_) {
       slip_diagnostics_sub_ = this->create_subscription<std_msgs::msg::String>(
         slip_diagnostics_topic_,
@@ -222,6 +229,36 @@ public:
     }
     on_set_parameters_handle_ = this->add_on_set_parameters_callback(
       std::bind(&XelaTaxelWebBridgeAhNode::on_set_parameters, this, std::placeholders::_1));
+
+    recalibrate_sub_ = this->create_subscription<std_msgs::msg::Empty>(
+      "/xela_atag_recalibrate",
+      rclcpp::QoS(1).reliable(),
+      [this](const std_msgs::msg::Empty::SharedPtr /*msg*/) {
+        baseline_.ready = false;
+        baseline_.started = false;
+        std::fill(baseline_.force_counts.begin(), baseline_.force_counts.end(), 0u);
+        std::fill(baseline_.taxel_counts.begin(), baseline_.taxel_counts.end(), 0u);
+        std::fill(baseline_.force_sum.begin(), baseline_.force_sum.end(), Vec3{});
+        std::fill(baseline_.taxel_sum.begin(), baseline_.taxel_sum.end(), Vec3{});
+        RCLCPP_INFO(this->get_logger(), "Baseline reset via /xela_atag_recalibrate topic.");
+      });
+
+    reset_baseline_srv_ = this->create_service<std_srvs::srv::Trigger>(
+      "reset_baseline",
+      [this](
+        const std_srvs::srv::Trigger::Request::SharedPtr /*req*/,
+        std_srvs::srv::Trigger::Response::SharedPtr resp)
+      {
+        baseline_.ready = false;
+        baseline_.started = false;
+        std::fill(baseline_.force_counts.begin(), baseline_.force_counts.end(), 0u);
+        std::fill(baseline_.taxel_counts.begin(), baseline_.taxel_counts.end(), 0u);
+        std::fill(baseline_.force_sum.begin(), baseline_.force_sum.end(), Vec3{});
+        std::fill(baseline_.taxel_sum.begin(), baseline_.taxel_sum.end(), Vec3{});
+        RCLCPP_INFO(this->get_logger(), "Baseline reset by service call.");
+        resp->success = true;
+        resp->message = "Baseline reset.";
+      });
 
     last_publish_steady_ = std::chrono::steady_clock::now();
 
@@ -290,8 +327,8 @@ private:
     bool ready{false};
     bool started{false};
     std::chrono::steady_clock::time_point start;
-    std::size_t force_samples{0};
-    std::size_t taxel_samples{0};
+    std::vector<std::size_t> force_counts;  // per-sensor sample count
+    std::vector<std::size_t> taxel_counts;  // per-sensor sample count
     std::vector<Vec3> force_sum;
     std::vector<Vec3> taxel_sum;
     std::vector<Vec3> force_base;
@@ -354,6 +391,9 @@ private:
     this->declare_parameter<bool>("include_grasp_event_meta", true);
     this->declare_parameter<std::string>("grasp_event_topic", "/atag/grasp_event");
     this->declare_parameter<double>("grasp_event_timeout_sec", 3.0);
+
+    this->declare_parameter<std::string>("full_in_topic", "/x_taxel_ah");
+    this->declare_parameter<bool>("show_all_modules", false);
   }
 
   std::string get_string_param(const std::string & name, const std::string & fallback)
@@ -469,6 +509,9 @@ private:
     include_grasp_event_meta_ = get_bool_param("include_grasp_event_meta", true);
     grasp_event_topic_ = get_string_param("grasp_event_topic", "/atag/grasp_event");
     grasp_event_timeout_sec_ = std::max(0.0, get_double_param("grasp_event_timeout_sec", 3.0));
+
+    full_in_topic_ = get_string_param("full_in_topic", "/x_taxel_ah");
+    show_all_modules_ = get_bool_param("show_all_modules", false);
 
     resolved_hand_side_ = resolve_hand_side();
   }
@@ -711,8 +754,8 @@ private:
     }
     baseline_.ready = false;
     baseline_.started = false;
-    baseline_.force_samples = 0;
-    baseline_.taxel_samples = 0;
+    baseline_.force_counts.assign(size, 0u);
+    baseline_.taxel_counts.assign(size, 0u);
     baseline_.force_sum.assign(size, {});
     baseline_.taxel_sum.assign(size, {});
     baseline_.force_base.assign(size, {});
@@ -746,8 +789,6 @@ private:
     }
 
     if (elapsed <= baseline_duration_sec_) {
-      bool saw_force = false;
-      bool saw_taxel = false;
       for (std::size_t idx = 0; idx < current.size(); ++idx) {
         if (!present[idx]) {
           continue;
@@ -756,41 +797,31 @@ private:
           baseline_.taxel_sum[idx].x += current[idx].x;
           baseline_.taxel_sum[idx].y += current[idx].y;
           baseline_.taxel_sum[idx].z += current[idx].z;
-          saw_taxel = true;
+          baseline_.taxel_counts[idx] += 1u;
         } else {
           baseline_.force_sum[idx].x += current[idx].x;
           baseline_.force_sum[idx].y += current[idx].y;
           baseline_.force_sum[idx].z += current[idx].z;
-          saw_force = true;
+          baseline_.force_counts[idx] += 1u;
         }
-      }
-      if (saw_force) {
-        baseline_.force_samples += 1;
-      }
-      if (saw_taxel) {
-        baseline_.taxel_samples += 1;
       }
     }
 
     if (elapsed >= baseline_duration_sec_) {
-      if (baseline_.force_samples > 0) {
-        for (std::size_t idx = 0; idx < baseline_.force_base.size(); ++idx) {
-          baseline_.force_base[idx].x =
-            baseline_.force_sum[idx].x / static_cast<double>(baseline_.force_samples);
-          baseline_.force_base[idx].y =
-            baseline_.force_sum[idx].y / static_cast<double>(baseline_.force_samples);
-          baseline_.force_base[idx].z =
-            baseline_.force_sum[idx].z / static_cast<double>(baseline_.force_samples);
+      for (std::size_t idx = 0; idx < baseline_.force_base.size(); ++idx) {
+        if (baseline_.force_counts[idx] > 0) {
+          const double n = static_cast<double>(baseline_.force_counts[idx]);
+          baseline_.force_base[idx].x = baseline_.force_sum[idx].x / n;
+          baseline_.force_base[idx].y = baseline_.force_sum[idx].y / n;
+          baseline_.force_base[idx].z = baseline_.force_sum[idx].z / n;
         }
       }
-      if (baseline_.taxel_samples > 0) {
-        for (std::size_t idx = 0; idx < baseline_.taxel_base.size(); ++idx) {
-          baseline_.taxel_base[idx].x =
-            baseline_.taxel_sum[idx].x / static_cast<double>(baseline_.taxel_samples);
-          baseline_.taxel_base[idx].y =
-            baseline_.taxel_sum[idx].y / static_cast<double>(baseline_.taxel_samples);
-          baseline_.taxel_base[idx].z =
-            baseline_.taxel_sum[idx].z / static_cast<double>(baseline_.taxel_samples);
+      for (std::size_t idx = 0; idx < baseline_.taxel_base.size(); ++idx) {
+        if (baseline_.taxel_counts[idx] > 0) {
+          const double n = static_cast<double>(baseline_.taxel_counts[idx]);
+          baseline_.taxel_base[idx].x = baseline_.taxel_sum[idx].x / n;
+          baseline_.taxel_base[idx].y = baseline_.taxel_sum[idx].y / n;
+          baseline_.taxel_base[idx].z = baseline_.taxel_sum[idx].z / n;
         }
       }
       baseline_.ready = true;
@@ -925,6 +956,18 @@ private:
   }
 
   void on_taxel_array(const xela_taxel_msgs::msg::XTaxelSensorTArray::SharedPtr msg)
+  {
+    if (show_all_modules_) return;
+    process_and_publish(msg);
+  }
+
+  void on_full_taxel_array(const xela_taxel_msgs::msg::XTaxelSensorTArray::SharedPtr msg)
+  {
+    if (!show_all_modules_) return;
+    process_and_publish(msg);
+  }
+
+  void process_and_publish(const xela_taxel_msgs::msg::XTaxelSensorTArray::SharedPtr msg)
   {
     if (data_size_ == 0) {
       return;
@@ -1211,7 +1254,8 @@ private:
     json << "\"xy_force_range\":" << effective_xy_range << ",";
     json << "\"z_force_range\":" << effective_z_range << ",";
     json << "\"use_fz_only\":" << (use_fz_only_ ? "true" : "false") << ",";
-    json << "\"force_scale\":" << force_scale_;
+    json << "\"force_scale\":" << force_scale_ << ",";
+    json << "\"baseline_ready\":" << (baseline_.ready ? "true" : "false");
     if (has_slip) {
       json << ",\"slip\":" << slip_json;
       json << ",\"slip_age_ms\":" << slip_age_ms;
@@ -1338,6 +1382,14 @@ private:
           return result;
         }
         fixed_frame_ = param.as_string();
+      } else if (name == "show_all_modules") {
+        bool value = show_all_modules_;
+        if (!parameter_to_bool(param, value)) {
+          result.successful = false;
+          result.reason = "show_all_modules must be bool-compatible";
+          return result;
+        }
+        show_all_modules_ = value;
       }
     }
 
@@ -1432,10 +1484,16 @@ private:
   std::string latest_grasp_event_json_;
   rclcpp::Time latest_grasp_event_stamp_{0, 0, RCL_ROS_TIME};
 
+  bool show_all_modules_{false};
+  std::string full_in_topic_{"/x_taxel_ah"};
+
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_;
   rclcpp::Subscription<xela_taxel_msgs::msg::XTaxelSensorTArray>::SharedPtr sub_;
+  rclcpp::Subscription<xela_taxel_msgs::msg::XTaxelSensorTArray>::SharedPtr full_sub_;
+  rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr recalibrate_sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr slip_diagnostics_sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr grasp_event_sub_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_baseline_srv_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_parameters_handle_;
 };
 

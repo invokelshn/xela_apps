@@ -7,14 +7,11 @@ from launch.substitutions import PathJoinSubstitution
 
 
 def generate_launch_description():
-    default_config = PathJoinSubstitution(
-        [FindPackageShare('xela_server2_ah'), 'config', 'server2_ah_config.yaml']
-    )
-
     return LaunchDescription([
         DeclareLaunchArgument('ws_host', default_value='localhost'),
         DeclareLaunchArgument('ws_port', default_value='5000'),
-        DeclareLaunchArgument('frame_ids_yaml', default_value=default_config),
+        DeclareLaunchArgument('hand_side', default_value='left',
+                              description='Hand side: left or right'),
         DeclareLaunchArgument('header_frame_id', default_value=''),
         DeclareLaunchArgument('use_ros_time_for_sensor_time', default_value='false'),
         DeclareLaunchArgument('publisher_qos_depth', default_value='10'),
@@ -28,7 +25,7 @@ def generate_launch_description():
             parameters=[{
                 'ws_host': LaunchConfiguration('ws_host'),
                 'ws_port': LaunchConfiguration('ws_port'),
-                'frame_ids_yaml': LaunchConfiguration('frame_ids_yaml'),
+                'hand_side': LaunchConfiguration('hand_side'),
                 'header_frame_id': LaunchConfiguration('header_frame_id'),
                 'use_ros_time_for_sensor_time': LaunchConfiguration('use_ros_time_for_sensor_time'),
                 'publisher_qos_depth': LaunchConfiguration('publisher_qos_depth'),

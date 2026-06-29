@@ -19,10 +19,9 @@ def generate_launch_description():
     ])
 
     mapping_yaml = PathJoinSubstitution([
-        FindPackageShare('std_xela_taxel_viz_ahv4'),
+        FindPackageShare('xela_server2_ah'),
         'config',
-        'maps',
-        'taxel_joint_map_new.yaml'
+        'l_server_model_joint_map.yaml'
     ])
 
     pattern_yaml = PathJoinSubstitution([
@@ -216,7 +215,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'mapping_yaml',
             default_value=mapping_yaml,
-            description='Path to taxel_joint_map_new.yaml.'
+            description='Path to server mapping YAML (l_ or r_server_model_joint_map.yaml).'
         ),
         DeclareLaunchArgument(
             'hand_side',

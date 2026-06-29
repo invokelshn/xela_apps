@@ -22,6 +22,7 @@ export function createAppState(config) {
       m30: true, m31: true, m32: true, m33: true,
       m51: true, m52: true, m53: true
     },
+    sensorViewMode: "all",
     pendingSwitch: false,
     gridVectorMode: config.gridVectorMode || "xy",
     gridVectorZProjX: config.vector3dProjectX,

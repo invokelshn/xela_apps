@@ -74,8 +74,9 @@ private:
     }
     YAML::Node root = YAML::LoadFile(mapping_yaml_);
     YAML::Node map_node = root["taxel_joint_map"];
+    if (!map_node) map_node = root["server_model_joint_map"];
     if (!map_node) {
-      throw std::runtime_error("taxel_joint_map not found in mapping_yaml");
+      throw std::runtime_error("taxel_joint_map/server_model_joint_map not found in mapping_yaml");
     }
 
     size_t max_index = 0;

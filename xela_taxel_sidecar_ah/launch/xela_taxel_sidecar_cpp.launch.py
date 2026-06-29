@@ -21,8 +21,9 @@ def _resolve_hand_params(context):
     pattern_override = LaunchConfiguration("pattern_yaml").perform(context).strip()
     mapping_override = LaunchConfiguration("mapping_yaml").perform(context).strip()
 
+    server_share = FindPackageShare("xela_server2_ah").perform(context)
     std_share = FindPackageShare("std_xela_taxel_viz_ahv4").perform(context)
-    default_mapping = f"{std_share}/config/maps/taxel_joint_map_new.yaml"
+    default_mapping = f"{server_share}/config/l_server_model_joint_map.yaml"
     default_pattern = (
         f"{std_share}/config/patterns/pattern_rahv4.yaml"
         if hand_side == "right"
@@ -115,7 +116,9 @@ def generate_launch_description() -> LaunchDescription:
             "--port",
             LaunchConfiguration("web_port"),
             "--web-root",
-            web_root
+            web_root,
+            "--sim-server-node",
+            LaunchConfiguration("sim_server_node"),
         ],
         output="screen",
         condition=IfCondition(LaunchConfiguration("enable_web_server")),
@@ -184,6 +187,13 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("enable_sidecar_rosbridge", default_value="true"),
         DeclareLaunchArgument("sidecar_rosbridge_host", default_value="0.0.0.0"),
         DeclareLaunchArgument("sidecar_rosbridge_port", default_value="9090"),
+        DeclareLaunchArgument(
+            "sim_server_node",
+            default_value="",
+            description="ROS node name of xela_atag_mock_server (without leading slash). "
+                        "When set, the Simulate toolbar is shown in the sidecar web UI. "
+                        "Example: xela_atag_mock_server",
+        ),
         OpaqueFunction(function=_resolve_hand_params),
         sidecar_rosbridge,
         bridge_node,

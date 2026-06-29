@@ -64,6 +64,17 @@ export function buildRuntimeConfig(windowRef) {
   const vizNodeName = params.get("viz_node") || "/xvizah/std_xela_taxel_viz_ahv4";
   const bridgeNodeName = params.get("bridge_node") || "/xela_taxel_web_bridge_cpp";
 
+  // sim_server_node: ROS node name of xela_atag_mock_server (without leading slash).
+  // When non-empty the Simulate toolbar is visible in the sidecar UI.
+  // Priority: URL param → server-injected default (window.XELA_AH_SIM_SERVER_NODE) → ""
+  // Uses a distinct window variable (XELA_AH_SIM_SERVER_NODE) to avoid conflict
+  // with xela_taxel_sidecar_2f which uses XELA_SIM_SERVER_NODE.
+  const simServerNode = (
+    params.get("sim_server_node") ||
+    (typeof windowRef !== "undefined" && windowRef.XELA_AH_SIM_SERVER_NODE) ||
+    ""
+  ).trim();
+
   return {
     wsCandidates,
     topic,
@@ -87,5 +98,6 @@ export function buildRuntimeConfig(windowRef) {
     followCamForwardSign,
     vizNodeName,
     bridgeNodeName,
+    simServerNode,
   };
 }
