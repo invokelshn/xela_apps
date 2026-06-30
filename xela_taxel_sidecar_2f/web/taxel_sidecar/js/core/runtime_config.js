@@ -15,7 +15,11 @@ export function buildRuntimeConfig(windowRef) {
   ];
 
   const topic = params.get("topic") || "/x_taxel_2f/web_state";
-  const topicNs = (params.get("ns") || "/xviz2f").replace(/\/+$/, "");
+  const topicNs = (
+    params.get("ns") ||
+    (typeof window !== "undefined" && window.XELA_NS) ||
+    "/xviz2f"
+  ).replace(/\/+$/, "");
 
   const xelaRobotDescriptionTopic =
     params.get("xela_robot_description_topic") ||

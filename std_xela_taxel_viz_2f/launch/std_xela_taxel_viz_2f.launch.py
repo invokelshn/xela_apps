@@ -1,4 +1,5 @@
 import os
+import yaml
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -83,6 +84,18 @@ def generate_launch_description():
             'in_topic': '/x_taxel_2f',
             'out_topic': 'markers',
         }
+
+        # Explicitly merge model yaml params into overrides so grid_rows/grid_cols
+        # are guaranteed to override the base yaml regardless of ROS parameter file
+        # loading order (handles cases where Node params list ordering is ambiguous).
+        if os.path.isfile(model_params_file):
+            try:
+                with open(model_params_file, 'r') as f:
+                    model_yaml = yaml.safe_load(f)
+                ros_params = (model_yaml or {}).get('/**', {}).get('ros__parameters', {})
+                overrides.update(ros_params)
+            except Exception:
+                pass
 
         return [
             Node(

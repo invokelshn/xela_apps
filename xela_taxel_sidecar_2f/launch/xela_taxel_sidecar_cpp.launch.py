@@ -87,6 +87,8 @@ def generate_launch_description() -> LaunchDescription:
             web_root,
             "--sim-server-node",
             LaunchConfiguration("sim_server_node"),
+            "--xela-ns",
+            LaunchConfiguration("xela_ns"),
         ],
         output="screen",
         condition=IfCondition(LaunchConfiguration("enable_web_server")),
@@ -154,6 +156,10 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("sim_server_node", default_value="",
                               description="ROS node name of sim_xela_server. "
                                           "When non-empty the Simulate toolbar is shown by default."),
+        DeclareLaunchArgument("xela_ns", default_value="",
+                              description="ROS namespace of the XELA viz stack (e.g. /xviz). "
+                                          "Injected into the web UI so XelaModel mode finds the "
+                                          "correct robot_state_publisher service."),
         DeclareLaunchArgument("enable_sidecar_rosbridge", default_value="true"),
         DeclareLaunchArgument("sidecar_rosbridge_host", default_value="0.0.0.0"),
         DeclareLaunchArgument("sidecar_rosbridge_port", default_value="9090"),

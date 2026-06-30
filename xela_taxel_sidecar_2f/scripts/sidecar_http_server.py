@@ -79,7 +79,10 @@ class SidecarRequestHandler(SimpleHTTPRequestHandler):
 
     def _serve_runtime_defaults(self):
         sim_node = getattr(self, "_sim_server_node", "") or ""
+        xela_ns = getattr(self, "_xela_ns", "") or ""
         js = f'window.XELA_SIM_SERVER_NODE = {repr(sim_node)};\n'
+        if xela_ns:
+            js += f'window.XELA_NS = {repr(xela_ns)};\n'
         data = js.encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/javascript; charset=utf-8")
@@ -149,6 +152,10 @@ def parse_args():
     parser.add_argument("--sim-server-node", default="",
                         help="ROS node name of sim_xela_server. When set, the Simulate "
                              "toolbar is shown by default in the sidecar web UI.")
+    parser.add_argument("--xela-ns", default="",
+                        help="ROS namespace for the XELA viz stack (e.g. /xviz). "
+                             "Injected as window.XELA_NS so the web UI uses the correct "
+                             "robot_state_publisher service path without a URL parameter.")
     return parser.parse_args()
 
 
@@ -157,6 +164,7 @@ def main():
 
     class _Handler(SidecarRequestHandler):
         _sim_server_node = args.sim_server_node
+        _xela_ns = args.xela_ns
 
     handler = partial(_Handler, web_root=args.web_root)
     server = ThreadingHTTPServer((args.host, args.port), handler)
