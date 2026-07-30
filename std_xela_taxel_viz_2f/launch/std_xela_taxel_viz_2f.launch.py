@@ -12,7 +12,7 @@ from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 # Models that support mount_type (standalone/gripper) subdirectory in config/models/
-_MOUNT_TYPE_MODELS = {'uSPa44', 'uSPa46'}
+_MOUNT_TYPE_MODELS = {'uSPa44', 'uSPa44_n', 'uSPa46'}
 
 
 def generate_launch_description():

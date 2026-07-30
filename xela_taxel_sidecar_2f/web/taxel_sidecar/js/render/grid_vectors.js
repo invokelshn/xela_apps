@@ -2,6 +2,15 @@ function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
 }
 
+// CCW rotation of a direction vector around the origin, matching grid.js's cell rotation.
+function rotateDirCCW(x, y, deg) {
+  if (!deg) return [x, y];
+  const rad = (deg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return [x * cos - y * sin, x * sin + y * cos];
+}
+
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
@@ -32,6 +41,7 @@ export function drawGridVectors({
   cellSize,
   toPx,
   drawArrow,
+  rotationDegByModule = {},
 }) {
   const xyRange = Math.max(1e-6, Number(payload?.meta?.xy_force_range) || 0.8);
   const zRange = Math.max(1e-6, Number(payload?.meta?.z_force_range) || 14.0);
@@ -85,6 +95,11 @@ export function drawGridVectors({
     if (magNorm < arrowDeadzoneNorm) {
       continue;
     }
+
+    // Rotate the arrow direction the same amount the cell grid was visually rotated,
+    // so arrows keep pointing consistently with the (now rotated) grid layout.
+    const rotDeg = rotationDegByModule[p.module] || 0;
+    [ux, uy] = rotateDirCCW(ux, uy, rotDeg);
 
     const strength01 = clamp(
       (magNorm - arrowDeadzoneNorm) / (arrowMaxNorm - arrowDeadzoneNorm),

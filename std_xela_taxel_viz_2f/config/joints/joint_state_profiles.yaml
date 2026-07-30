@@ -19,3 +19,8 @@ device_profiles:
   uSPa44:
     keep_joints_files:
       - uspa44_joint.yaml
+  uSPa44_n:
+    # Same joint naming as uSPa44 (taxel_n macro joint names don't depend on which
+    # uSPa44 xacro/mesh variant is used) — reuse the same keep_joints list.
+    keep_joints_files:
+      - uspa44_joint.yaml

@@ -1,16 +1,27 @@
 <?xml version="1.0"?>
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="uSPa44_2modules">
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="uSPa44_n_2modules">
   <xacro:arg name="use_ros2_control" default="false" />
   <xacro:arg name="mount_type" default="standalone" />
   <xacro:property name="use_ros2_control" value="$(arg use_ros2_control)" />
   <xacro:property name="mount_type" value="$(arg mount_type)" />
 
   <!-- standalone: both modules face the same direction (side by side)  -->
-  <!-- gripper:    module 01 rotated 180deg to face module 02            -->
+  <!-- gripper:    module 01/02 rotated to face each other               -->
+
+  <!-- 2026-07-10: uSPa44_n variant — uses uSPa44_n.xacro/uSPa44_n.stl, the lighter mesh
+       already used (unmodified) by the real robot's URDF (dofbot_rrl.urdf.xacro), instead
+       of the older uSPa44.xacro/uSPa44.stl used by xela_uSPa44_2_modules.xacro. Its taxel
+       array offsets are symmetric (xoff=yoff, txstep=tystep) and its mesh bounding box is
+       already close to centered on the taxel array, so no mesh_rz (separate mesh-only
+       rotation) workaround is included here — start with rz only and add mesh_rz later
+       (porting the same bbox-pivot mechanism from uSPa44.xacro) only if the mesh visibly
+       drifts off the array once rotated. rz/x/y below are a fresh starting point (rz=0,
+       untuned) — do NOT reuse the uSPa44 (non-_n) tuned values, this mesh's bounding box
+       and taxel offsets are different. -->
 
   <xacro:include filename="$(find xela_models)/urdf/materials.xacro" />
   <xacro:include filename="$(find xela_models)/urdf/taxel_n.xacro" />
-  <xacro:include filename="$(find xela_models)/urdf/uSPa44.xacro" />
+  <xacro:include filename="$(find xela_models)/urdf/uSPa44_n.xacro" />
 
   <link name="world" />
 
@@ -28,33 +39,24 @@
     </visual>
   </link>
 
-  <!-- Module 01: rotated 180deg in gripper mode to face module 02 -->
-  <!-- gripper: y_offset = mesh_max_y - mesh_min_y = 0.023736 - (-0.000064) = 0.0238 -->
-  <!-- Mesh Y range (from STL): -0.000064 ~ 0.023736. After rz=180: [-0.023736, 0.000064] -->
-  <!-- y_offset makes module 01 Y range match module 02 Y range after rotation -->
-  <!-- 2026-07-10: LEFT module taxel array orientation confirmed correct at rz=270
-       (180 existing + 90 CCW). Separately, the base mesh's cable-exit notch was still off
-       by 90deg from the taxel array — mesh_rz rotates only the <visual> mesh (base link
-       appearance), leaving the taxel array layout (defined relative to the same link's
-       origin, unaffected by mesh_rz) exactly where it already was confirmed correct. -->
+  <!-- Module 01 (LEFT): 2026-07-10 — whole module (base mesh + taxel array together, via
+       the joint's rz) rotated 90deg clockwise for XelaModel display. Rotating the whole
+       joint keeps mesh and taxel array aligned with each other (unlike mesh_rz, which only
+       rotates the visual mesh). Rotating about the link's own origin (0,0) swings the whole
+       footprint away though (confirmed visually) — x/y below re-centers it on the taxel
+       array's own local center (~0.0113,0.0113) so it lands back where it started. -->
   <xacro:if value="${mount_type == 'gripper'}">
-    <xacro:uSPa44 sequence="x_taxel_01" col="green" parent="x_taxel_viz" taxels="1" x="0" y="0.0238" rz="270" mesh_rz="90" />
+    <xacro:uSPa44 sequence="x_taxel_01" col="green" parent="x_taxel_viz" taxels="1" x="0" y="0.0226" rz="-90" />
   </xacro:if>
   <xacro:unless value="${mount_type == 'gripper'}">
     <xacro:uSPa44 sequence="x_taxel_01" col="green" parent="x_taxel_viz" taxels="1" x="0" y="0" />
   </xacro:unless>
 
-  <!-- Module 02: spacing 35mm (standalone) or 30mm (gripper) -->
-  <!-- 2026-07-10: RIGHT module — whole assembly (taxel array + mesh) rotated 90deg CCW via
-       rz, then the base mesh rotated an additional 90deg on top of that via mesh_rz (same
-       pivot-corrected mechanism used for LEFT, so the mesh stays over the taxel array).
-       Rotating the whole joint by rz also rotates the direction the taxel array "grows" in
-       from this link's own origin, so the original x=0.03/y=0 gap (tuned for rz=0) now
-       swings the array back toward module 01 and overlaps it. x/y recomputed below so the
-       taxel array's own footprint center lands back ~30mm from module 01's, same as before
-       rotation — treat as a starting point, nudge x/y further if the gap still looks off. -->
+  <!-- Module 02 (RIGHT): 2026-07-10 — rotated 90deg CCW, and x/y recomputed (same pivot
+       method as LEFT) so its footprint center lands on the same Y as LEFT's (horizontal
+       alignment) with a ~35mm center-to-center gap. -->
   <xacro:if value="${mount_type == 'gripper'}">
-    <xacro:uSPa44 sequence="x_taxel_02" col="red" parent="x_taxel_viz" taxels="1" x="0.0636" y="-0.0009" rz="90" mesh_rz="90" />
+    <xacro:uSPa44 sequence="x_taxel_02" col="red" parent="x_taxel_viz" taxels="1" x="0.0576" y="0" rz="90" />
   </xacro:if>
   <xacro:unless value="${mount_type == 'gripper'}">
     <xacro:uSPa44 sequence="x_taxel_02" col="red" parent="x_taxel_viz" taxels="1" x="0.035" y="0" />

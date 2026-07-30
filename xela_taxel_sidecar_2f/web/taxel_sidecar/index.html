@@ -2105,11 +2105,12 @@
         return marker;
       }
 
-      function resolveMarkerPose(frameId, fixedFrame, strictCache, strictVisiting, looseCache, looseVisiting) {
+      function resolveMarkerPose(frameId, fixedFrame, strictCache, strictVisiting, looseCache, looseVisiting, allowLooseRootFallback = true) {
         const frame = resolveChildFrameAlias(frameId) || normalizeFrameId(frameId);
         if (!frame) return null;
         let tf = resolveFrameToFixed(frame, fixedFrame, strictCache, strictVisiting, false);
         if (tf) return tf;
+        if (!allowLooseRootFallback) return null;
         return resolveFrameToFixed(frame, fixedFrame, looseCache, looseVisiting, true);
       }
 
@@ -2126,12 +2127,15 @@
         const strictVisiting = new Set();
         const looseCache = new Map();
         const looseVisiting = new Set();
+        // RobotModel mode must not fall back to the taxel URDF's own static (world-rooted) FK
+        // chain for frames the real robot /tf doesn't know about — that produced markers stuck
+        // at the XelaModel-mode static layout instead of following the live gripper pose.
+        const allowLooseRootFallback = state.uiMode !== "robot";
 
         for (const p of points) {
           const key = `${p.module}:${p.sensor_index}`;
           liveKeys.add(key);
           const marker = ensureMarkerObject(key);
-          marker.group.visible = true;
           const tfPose = resolveMarkerPose(
             p.frame_id,
             fixedFrame,
@@ -2139,13 +2143,21 @@
             strictVisiting,
             looseCache,
             looseVisiting,
+            allowLooseRootFallback,
           );
           if (tfPose) {
+            marker.group.visible = true;
             marker.group.position.set(tfPose.tx, tfPose.ty, tfPose.tz);
             marker.group.quaternion.set(tfPose.qx, tfPose.qy, tfPose.qz, tfPose.qw);
-          } else {
+          } else if (allowLooseRootFallback) {
+            marker.group.visible = true;
             marker.group.position.set(Number(p.x) || 0, Number(p.y) || 0, Number(p.z) || 0);
             marker.group.quaternion.set(0, 0, 0, 1);
+          } else {
+            // No live transform available for this taxel frame in RobotModel mode — hide it
+            // rather than showing it at a stale/static position.
+            marker.group.visible = false;
+            continue;
           }
 
           const norm = Math.max(0, Math.min(1, Number(p.norm) || 0));

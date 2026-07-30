@@ -1,5 +1,21 @@
 import { drawGridVectors } from "./grid_vectors.js";
 
+// Per-module on-screen rotation for GridMode, in degrees, counter-clockwise
+// (as viewed on screen). Adjust here if the physical mount orientation changes.
+// 2026-07-10: LEFT verified first, RIGHT added after confirming LEFT looked correct.
+const GRID_ROTATION_DEG = { left: 90, right: 90 };
+
+// Standard CCW rotation around an arbitrary pivot, in world space (Y-up).
+function rotateAroundPivot(x, y, cx, cy, deg) {
+  if (!deg) return [x, y];
+  const rad = (deg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = x - cx;
+  const dy = y - cy;
+  return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+}
+
 export function drawGridMode({
   payload,
   ctx,
@@ -9,8 +25,8 @@ export function drawGridMode({
   drawArrow,
   drawEmpty,
 }) {
-  const points = (payload.grid && payload.grid.points) || [];
-  if (!points.length) {
+  const rawPoints = (payload.grid && payload.grid.points) || [];
+  if (!rawPoints.length) {
     drawEmpty("No grid points");
     return;
   }
@@ -22,6 +38,29 @@ export function drawGridMode({
   const separatorColsRight = Array.isArray(payload.grid?.separator_cols_right)
     ? payload.grid.separator_cols_right
     : [];
+
+  // Original (pre-rotation) per-module center, used as the rotation pivot so each
+  // module rotates in place instead of swinging around the whole-canvas origin.
+  const originalCenterByModule = new Map();
+  for (const moduleName of ["left", "right"]) {
+    const modulePts = rawPoints.filter((p) => p.module === moduleName);
+    if (!modulePts.length) continue;
+    const bx0 = Math.min(...modulePts.map((p) => p.x));
+    const bx1 = Math.max(...modulePts.map((p) => p.x));
+    const by0 = Math.min(...modulePts.map((p) => p.y));
+    const by1 = Math.max(...modulePts.map((p) => p.y));
+    originalCenterByModule.set(moduleName, [(bx0 + bx1) / 2, (by0 + by1) / 2]);
+  }
+
+  // Rotated working copy of every point's cell position (fx/fy left untouched here —
+  // drawGridVectors applies the same rotation to the arrow direction itself, after its
+  // existing per-module sign conventions, to avoid double-transforming the force vector).
+  const points = rawPoints.map((p) => {
+    const deg = GRID_ROTATION_DEG[p.module] || 0;
+    const center = originalCenterByModule.get(p.module) || [0, 0];
+    const [x, y] = rotateAroundPivot(p.x, p.y, center[0], center[1], deg);
+    return { ...p, x, y };
+  });
 
   const pad = Math.max(28, canvas.width * 0.05);
   const minX = Math.min(...points.map((p) => p.x));
@@ -75,7 +114,9 @@ export function drawGridMode({
     ctx.fillStyle = "#cbd5e1";
     ctx.font = `${Math.max(10, Math.floor(canvas.height * 0.018))}px monospace`;
     ctx.textAlign = "left";
-    ctx.fillText(moduleName.toUpperCase(), left + 6, top + 16);
+    // Clamp so the label never starts off-canvas (was getting clipped, e.g. "LEFT" -> "FT").
+    const labelX = Math.max(4, left + 6);
+    ctx.fillText(moduleName.toUpperCase(), labelX, top + 16);
   }
 
   for (const p of points) {
@@ -96,9 +137,16 @@ export function drawGridMode({
     const separators = moduleName === "left" ? separatorColsLeft : separatorColsRight;
     if (!separators.length) continue;
 
-    const moduleMinX = Math.min(...modulePts.map((p) => p.x));
-    const moduleMaxY = Math.max(...modulePts.map((p) => p.y));
-    const moduleMinY = Math.min(...modulePts.map((p) => p.y));
+    const deg = GRID_ROTATION_DEG[moduleName] || 0;
+    const center = originalCenterByModule.get(moduleName) || [0, 0];
+
+    // Separator endpoints are computed in the module's original (pre-rotation) local
+    // frame, then rotated by the same transform as the cells so they stay perpendicular
+    // to the (now rotated) rows/columns instead of always being drawn as vertical lines.
+    const rawModulePts = rawPoints.filter((p) => p.module === moduleName);
+    const moduleMinX = Math.min(...rawModulePts.map((p) => p.x));
+    const moduleMaxY = Math.max(...rawModulePts.map((p) => p.y));
+    const moduleMinY = Math.min(...rawModulePts.map((p) => p.y));
     const moduleBaseX = moduleMinX - gridCellSize * 0.5;
     const worldTopY = moduleMaxY + gridCellSize * 0.5;
     const worldBottomY = moduleMinY - gridCellSize * 0.5;
@@ -110,8 +158,10 @@ export function drawGridMode({
       const col = Number(colRaw);
       if (!Number.isFinite(col)) continue;
       const worldX = moduleBaseX + col * gridCellSize;
-      const [x0, y0] = toPx(worldX, worldTopY);
-      const [x1, y1] = toPx(worldX, worldBottomY);
+      const [rx0, ry0] = rotateAroundPivot(worldX, worldTopY, center[0], center[1], deg);
+      const [rx1, ry1] = rotateAroundPivot(worldX, worldBottomY, center[0], center[1], deg);
+      const [x0, y0] = toPx(rx0, ry0);
+      const [x1, y1] = toPx(rx1, ry1);
       ctx.beginPath();
       ctx.moveTo(x0, y0);
       ctx.lineTo(x1, y1);
@@ -127,5 +177,6 @@ export function drawGridMode({
     cellSize,
     toPx,
     drawArrow,
+    rotationDegByModule: GRID_ROTATION_DEG,
   });
 }
