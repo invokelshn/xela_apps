@@ -16,7 +16,9 @@
 
 #include <rcl_interfaces/msg/set_parameters_result.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/empty.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <tf2/exceptions.h>
 #include <tf2/time.h>
 #include <tf2_ros/buffer.h>
@@ -220,6 +222,33 @@ public:
     }
     on_set_parameters_handle_ = this->add_on_set_parameters_callback(
       std::bind(&XelaTaxelWebBridgeNode::on_set_parameters, this, std::placeholders::_1));
+
+    // NOTE: Reusing the same "/xela_atag_recalibrate" topic name as xela_taxel_sidecar_ah
+    // (rather than a 2F-specific name) is a deliberate choice: it is treated as a shared,
+    // hand/gripper-agnostic "re-baseline everything" signal. Any single publisher (e.g. an
+    // AT2FG-side tool) can recalibrate whichever sidecar(s) are currently running without
+    // needing to know which end-effector package is active.
+    recalibrate_sub_ = this->create_subscription<std_msgs::msg::Empty>(
+      "/xela_atag_recalibrate",
+      rclcpp::QoS(1).reliable(),
+      [this](const std_msgs::msg::Empty::SharedPtr /*msg*/) {
+        reset_baseline(baseline_left_);
+        reset_baseline(baseline_right_);
+        RCLCPP_INFO(this->get_logger(), "Baseline reset via /xela_atag_recalibrate topic.");
+      });
+
+    reset_baseline_srv_ = this->create_service<std_srvs::srv::Trigger>(
+      "reset_baseline",
+      [this](
+        const std_srvs::srv::Trigger::Request::SharedPtr /*req*/,
+        std_srvs::srv::Trigger::Response::SharedPtr resp)
+      {
+        reset_baseline(baseline_left_);
+        reset_baseline(baseline_right_);
+        RCLCPP_INFO(this->get_logger(), "Baseline reset by service call.");
+        resp->success = true;
+        resp->message = "Baseline reset.";
+      });
 
     last_publish_steady_ = std::chrono::steady_clock::now();
 
@@ -630,6 +659,17 @@ private:
       }
       return std::nullopt;
     }
+  }
+
+  void reset_baseline(BaselineState & state)
+  {
+    state.ready = false;
+    state.started = false;
+    state.samples = 0;
+    std::fill(state.force_sum.begin(), state.force_sum.end(), Vec3{});
+    std::fill(state.taxel_sum.begin(), state.taxel_sum.end(), Vec3{});
+    std::fill(state.force_base.begin(), state.force_base.end(), Vec3{});
+    std::fill(state.taxel_base.begin(), state.taxel_base.end(), Vec3{});
   }
 
   void ensure_baseline_size(BaselineState & state, const std::size_t size)
@@ -1070,7 +1110,8 @@ private:
     json << "\"xy_force_range\":" << effective_xy_range << ",";
     json << "\"z_force_range\":" << effective_z_range << ",";
     json << "\"use_fz_only\":" << (use_fz_only_ ? "true" : "false") << ",";
-    json << "\"force_scale\":" << force_scale_;
+    json << "\"force_scale\":" << force_scale_ << ",";
+    json << "\"baseline_ready\":" << ((baseline_left_.ready && baseline_right_.ready) ? "true" : "false");
     if (has_grasp) {
       json << ",\"grasp\":" << grasp_json;
       json << ",\"grasp_age_ms\":" << grasp_age_ms;
@@ -1222,6 +1263,8 @@ private:
   rclcpp::Subscription<xela_taxel_msgs::msg::XTaxelSensorTArray>::SharedPtr sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr grasp_telemetry_sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr grasp_event_sub_;
+  rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr recalibrate_sub_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_baseline_srv_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_parameters_handle_;
 };
 
