@@ -56,6 +56,7 @@ def _wait_for_websocket(context, *args, **kwargs):
                 "playback_interval_ms": LaunchConfiguration("playback_interval_ms"),
                 "playback_loop": LaunchConfiguration("playback_loop"),
             }],
+            prefix="chrt --rr 40",
             output="screen",
         )
     ]

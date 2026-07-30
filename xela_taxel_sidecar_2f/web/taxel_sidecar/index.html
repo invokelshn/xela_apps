@@ -343,6 +343,28 @@
       z-index: 3;
       pointer-events: none;
     }
+
+    /* ── Re-baseline button + status badge ─────────────────── */
+    #rebaselineBtn.collecting {
+      border-color: #f59e0b;
+      background: #2d1d00;
+      color: #fde68a;
+    }
+    #baselineStatus {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0b1222;
+      white-space: nowrap;
+      min-width: 120px;
+      text-align: center;
+    }
+    #baselineStatus.collecting {
+      border-color: #f59e0b;
+      color: #fde68a;
+    }
   </style>
 </head>
   <body>
@@ -362,6 +384,8 @@
         <button class="mode-btn" id="robotBtn">RobotModel</button>
         <button class="mode-btn" id="followBtn">FollowCam</button>
         <button class="mode-btn active" id="analysisBtn">Analysis</button>
+        <button class="mode-btn" id="rebaselineBtn" title="Recalculate sensor baseline (all modes)">Re-baseline</button>
+        <span id="baselineStatus">Baseline: ready</span>
         <button class="mode-btn" id="simBtn" style="display:none">Simulate</button>
         <div class="mini" id="topicInfo"></div>
       </div>
@@ -455,6 +479,8 @@
       const robotBtn = document.getElementById("robotBtn");
       const followBtn = document.getElementById("followBtn");
       const analysisBtn = document.getElementById("analysisBtn");
+      const rebaselineBtn = document.getElementById("rebaselineBtn");
+      const baselineStatusEl = document.getElementById("baselineStatus");
 
       // ── Simulate toolbar ──────────────────────────────────────
       const simBtn          = document.getElementById("simBtn");
@@ -2314,6 +2340,16 @@
             }
             updateSmoothedVectors(state.payload);
             updateModeButtons();
+            const baselineReady = state.payload?.meta?.baseline_ready !== false;
+            if (baselineReady) {
+              rebaselineBtn?.classList.remove("collecting");
+              baselineStatusEl?.classList.remove("collecting");
+              if (baselineStatusEl) baselineStatusEl.textContent = "Baseline: ready";
+            } else {
+              rebaselineBtn?.classList.add("collecting");
+              baselineStatusEl?.classList.add("collecting");
+              if (baselineStatusEl) baselineStatusEl.textContent = "Baseline: collecting...";
+            }
           } catch (_) {
           }
         }
@@ -2895,6 +2931,22 @@
         setFollowCamEnabled(!followCamState.enabled);
       });
       analysisBtn.addEventListener("click", () => setAnalysisVisible(!analysisState.visible));
+      rebaselineBtn?.addEventListener("click", () => {
+        // rosbridgeClient (js/core/rosbridge_client.js) only exposes connect()/close() in
+        // this package -- no sendServiceRequest() helper exists here (that was an AH-only
+        // API assumed by mistake). Send the raw rosbridge call_service message directly,
+        // matching the existing pattern used by callSimService() above.
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+        state.ws.send(JSON.stringify({
+          op: "call_service",
+          service: "reset_baseline",
+          type: "std_srvs/srv/Trigger",
+          args: {},
+        }));
+        rebaselineBtn.classList.add("collecting");
+        baselineStatusEl?.classList.add("collecting");
+        if (baselineStatusEl) baselineStatusEl.textContent = "Baseline: collecting...";
+      });
       win10Btn.addEventListener("click", () => setTimelineWindowMs(10000));
       win30Btn.addEventListener("click", () => setTimelineWindowMs(30000));
       win60Btn.addEventListener("click", () => setTimelineWindowMs(60000));
