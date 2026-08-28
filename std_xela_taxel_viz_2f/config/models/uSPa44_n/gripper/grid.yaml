@@ -1,0 +1,6 @@
+/**:
+  ros__parameters:
+    grid_rows: 4
+    grid_cols: 4
+    row_flip_right: true
+    col_flip_right: true
