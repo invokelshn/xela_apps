@@ -1,0 +1,3568 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="data:," />
+  <title>Xela Taxel Sidecar</title>
+  <!-- Injected by sidecar_http_server.py: sets window.XELA_DG5F_SIM_SERVER_NODE -->
+  <script src="/sidecar_runtime_defaults.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --line: #334155;
+      --txt: #e5e7eb;
+      --muted: #93a4bf;
+      --ok: #22c55e;
+      --bad: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      min-height: 100%;
+      overflow-y: auto;
+      background: radial-gradient(1200px 700px at 20% 10%, #182641 0%, var(--bg) 55%);
+      color: var(--txt);
+      font-family: "Roboto Mono", "Fira Code", "Consolas", monospace;
+    }
+
+    .app {
+      display: grid;
+      grid-template-rows: auto auto auto auto auto;
+      width: 100%;
+      min-height: 100%;
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .toolbar {
+      display: grid;
+      align-items: center;
+      gap: 10px;
+      background: color-mix(in oklab, var(--panel) 84%, black);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .status-toolbar {
+      grid-template-columns: minmax(240px, 360px) minmax(140px, 220px) minmax(260px, 1fr);
+    }
+
+    .control-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-group-sep {
+      flex-shrink: 0;
+      width: 1px;
+      height: 20px;
+      background: var(--line);
+      margin: 0 2px;
+    }
+
+    .status-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 240px;
+      max-width: 360px;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--bad);
+      box-shadow: 0 0 12px color-mix(in oklab, var(--bad) 70%, transparent);
+    }
+
+    .dot.ok {
+      background: var(--ok);
+      box-shadow: 0 0 12px color-mix(in oklab, var(--ok) 75%, transparent);
+    }
+
+    button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #1f2937;
+      color: var(--txt);
+      padding: 7px 11px;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #2a3647;
+    }
+
+    .mode-btn.active {
+      border-color: #0ea5e9;
+      background: #0f2f44;
+      color: #e2f2fb;
+    }
+
+    .mini {
+      font-size: 12px;
+      color: var(--muted);
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0b1222;
+      white-space: nowrap;
+    }
+
+    #modeInfo {
+      min-width: 280px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .module-toolbar {
+      grid-template-columns: auto repeat(5, auto);
+      justify-content: start;
+      gap: 15px;
+      padding: 6px 12px;
+      margin-top: -5px;
+    }
+
+    .module-toolbar label {
+      font-size: 13px;
+      color: var(--txt);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .module-toolbar input {
+      accent-color: #0ea5e9;
+      cursor: pointer;
+    }
+
+    #briefStats {
+      min-width: 180px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #topicInfo {
+      min-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .stats-row {
+      display: block;
+      padding: 8px 10px;
+      grid-row: 5;
+    }
+
+    #stats {
+      position: relative;
+      min-width: 0;
+      width: 100%;
+      text-align: left;
+      font-variant-numeric: tabular-nums;
+      white-space: normal;
+      overflow: hidden;
+    }
+
+    .stats-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .stats-scales {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+      margin-right: 4px;
+    }
+
+    .scale-btn {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+
+    #statsText {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #statsCurrent {
+      flex: 0 0 240px;
+      max-width: min(34%, 240px);
+      color: #cbd5e1;
+      font-size: 11px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-left: auto;
+      margin-right: 6px;
+    }
+
+    #followDebug {
+      flex: 0 1 520px;
+      color: #a5b4cf;
+      font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #sparkline {
+      display: block;
+      width: 100%;
+      height: 34px;
+      border-radius: 6px;
+      background: #0a1627;
+      border: 1px solid #1b2a3f;
+    }
+
+    .event-tooltip {
+      position: absolute;
+      pointer-events: none;
+      z-index: 6;
+      display: none;
+      max-width: min(420px, 80vw);
+      white-space: pre-line;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid #3b475d;
+      background: color-mix(in oklab, #0b1222 88%, black);
+      color: #dbeafe;
+      font-size: 11px;
+      line-height: 1.25;
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+    }
+
+    .viz {
+      grid-row: 4;
+      position: relative;
+      height: 420px;
+      min-height: 220px;
+      max-height: 90vh;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: linear-gradient(180deg, #0d1729 0%, #0b1221 100%);
+      overflow: hidden;
+    }
+
+    .urdf3d-layer {
+      position: absolute;
+      inset: 0;
+      display: none;
+      z-index: 1;
+      background: #0a1222;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .legend {
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      width: 180px;
+      background: color-mix(in oklab, #0b1222 75%, black);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+      backdrop-filter: blur(2px);
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    .legend h4 {
+      margin: 0 0 6px 0;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .scale {
+      width: 100%;
+      height: 8px;
+      border-radius: 5px;
+      background: linear-gradient(90deg, #3b82f6 0%, #f97316 55%, #ef4444 100%);
+      border: 1px solid color-mix(in oklab, var(--line) 65%, transparent);
+    }
+
+    .scale-label {
+      margin-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .hint {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      color: var(--muted);
+      font-size: 11px;
+      background: color-mix(in oklab, #0b1222 75%, black);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 7px 9px;
+      max-width: 62%;
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    /* ── Re-baseline button + status badge ─────────────────── */
+    #rebaselineBtn.collecting {
+      border-color: #f59e0b;
+      background: #2d1d00;
+      color: #fde68a;
+    }
+
+    #baselineStatus {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0b1222;
+      white-space: nowrap;
+      min-width: 120px;
+      text-align: center;
+    }
+
+    #baselineStatus.collecting {
+      border-color: #f59e0b;
+      color: #fde68a;
+    }
+
+    /* ── Simulate toolbar ───────────────────────────────────── */
+    #simBtn.active {
+      border-color: #f59e0b;
+      background: #2d1d00;
+      color: #fde68a;
+    }
+
+    .simulate-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      flex-basis: 100%;
+      width: 100%;
+      padding: 6px 4px 2px;
+      border-top: 1px solid var(--line);
+    }
+
+    .simulate-row .sim-label {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 0 4px;
+      white-space: nowrap;
+    }
+
+    .sim-btn {
+      font-size: 12px;
+    }
+
+    .sim-btn.active {
+      border-color: #f59e0b;
+      background: #2d1d00;
+      color: #fde68a;
+    }
+
+    .sim-state-badge {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0b1222;
+      white-space: nowrap;
+      min-width: 140px;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <div class="toolbar status-toolbar">
+      <div class="status-wrap">
+        <div class="status" id="statusLine">
+          <span class="dot" id="statusDot"></span>
+          <span id="statusText">Disconnected</span>
+        </div>
+        <button id="reconnectBtn">Reconnect</button>
+      </div>
+      <div class="mini" id="briefStats">No data</div>
+      <div class="mini" id="topicInfo"></div>
+    </div>
+    <div class="toolbar control-toolbar">
+      <div class="mini" id="modeInfo">Sidecar: Grid 2D</div>
+      <div class="btn-group-sep"></div>
+      <!-- Mode group -->
+      <div class="btn-group">
+        <button class="mode-btn" id="gridBtn">Grid</button>
+        <button class="mode-btn" id="xelaBtn">XelaModel</button>
+        <button class="mode-btn" id="robotBtn">RobotModel</button>
+      </div>
+      <div class="btn-group-sep"></div>
+      <!-- Baseline group -->
+      <div class="btn-group">
+        <button class="mode-btn" id="rebaselineBtn" title="Recalculate sensor baseline (all modes)">Re-baseline</button>
+        <span id="baselineStatus">Baseline: ready</span>
+      </div>
+      <div class="btn-group-sep"></div>
+      <!-- Function group -->
+      <div class="btn-group">
+        <button class="mode-btn" id="followBtn">FollowCam</button>
+        <button class="mode-btn" id="analysisBtn">Analysis</button>
+      </div>
+      <div class="btn-group-sep"></div>
+      <!-- Sensor view group -->
+      <div class="btn-group">
+        <button class="mode-btn active" id="sensorViewAllBtn" title="모든 센서 모듈 표시 (BT 필터 무시)">AllSensors</button>
+        <button class="mode-btn" id="sensorViewActiveBtn" title="BT/페이로드에서 활성화된 센서 모듈만 표시">ActiveOnly</button>
+      </div>
+      <div class="btn-group-sep"></div>
+      <!-- Simulate group -->
+      <button class="mode-btn" id="simBtn" style="display:none">Simulate</button>
+      <!-- Simulate sub-toolbar: visible when Simulate is toggled on -->
+      <div class="simulate-row" id="simulateRow" style="display:none">
+        <span class="sim-label">Base:</span>
+        <button class="sim-btn mode-btn active" id="simRandomBtn"      title="Random force variation (default)">RANDOM</button>
+        <button class="sim-btn mode-btn"        id="simSilentBtn"      title="No contact — silent baseline">SILENT</button>
+        <button class="sim-btn mode-btn"        id="simStepBtn"        title="Step impulse at t=5~7 s">STEP</button>
+        <button class="sim-btn mode-btn"        id="simRampBtn"        title="Linear force ramp-up / ramp-down">RAMP</button>
+        <button class="sim-btn mode-btn"        id="simContactLossBtn" title="Intermittent contact loss at t=10~15 s">C.LOSS</button>
+        <span class="sim-label" style="margin-left:6px">Grasp:</span>
+        <button class="sim-btn mode-btn"        id="simPinchBtn"       title="Pinch grasp — thumb + index tip">PINCH</button>
+        <button class="sim-btn mode-btn"        id="simTripodBtn"      title="Tripod grasp — thumb + index + middle tip">TRIPOD</button>
+        <button class="sim-btn mode-btn"        id="simPalmBtn"        title="Palm press — palm sensors">PALM</button>
+        <span class="sim-state-badge" id="simStateBadge">state: RANDOM</span>
+      </div>
+    </div>
+    <div class="toolbar module-toolbar" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+      <div style="grid-column: 1 / -1; display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-weight:bold;"><input type="checkbox" id="chkF1" checked> F1</label>
+          <div style="display: flex; gap: 6px; padding-left: 10px;">
+            <label><input type="checkbox" id="chkF1Ft" checked> ft</label>
+            <label><input type="checkbox" id="chkF1Mid" checked> mid</label>
+            <label><input type="checkbox" id="chkF1Prox" checked> prox</label>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-weight:bold;"><input type="checkbox" id="chkF2" checked> F2</label>
+          <div style="display: flex; gap: 6px; padding-left: 10px;">
+            <label><input type="checkbox" id="chkF2Ft" checked> ft</label>
+            <label><input type="checkbox" id="chkF2Mid" checked> mid</label>
+            <label><input type="checkbox" id="chkF2Prox" checked> prox</label>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-weight:bold;"><input type="checkbox" id="chkF3" checked> F3</label>
+          <div style="display: flex; gap: 6px; padding-left: 10px;">
+            <label><input type="checkbox" id="chkF3Ft" checked> ft</label>
+            <label><input type="checkbox" id="chkF3Mid" checked> mid</label>
+            <label><input type="checkbox" id="chkF3Prox" checked> prox</label>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-weight:bold;"><input type="checkbox" id="chkF4" checked> F4</label>
+          <div style="display: flex; gap: 6px; padding-left: 10px;">
+            <label><input type="checkbox" id="chkF4Ft" checked> ft</label>
+            <label><input type="checkbox" id="chkF4Mid" checked> mid</label>
+            <label><input type="checkbox" id="chkF4Prox" checked> prox</label>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-weight:bold;"><input type="checkbox" id="chkF5" checked> F5</label>
+          <div style="display: flex; gap: 6px; padding-left: 10px;">
+            <label><input type="checkbox" id="chkF5Ft" checked> ft</label>
+            <label><input type="checkbox" id="chkF5Mid" checked> mid</label>
+            <label><input type="checkbox" id="chkF5Prox" checked> prox</label>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-weight:bold;"><input type="checkbox" id="chkPalm" checked> Palm</label>
+          <div style="display: flex; gap: 6px; padding-left: 10px;">
+            <label><input type="checkbox" id="chkPalmUSPa46" checked> uSPa46</label>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="viz">
+      <div id="urdf3dLayer" class="urdf3d-layer"></div>
+      <canvas id="canvas"></canvas>
+      <div class="legend">
+        <h4 id="legendTitle">Intensity + XY Direction</h4>
+        <div class="scale"></div>
+        <div class="scale-label"><span>0</span><span>1</span></div>
+      </div>
+      <div class="hint" id="hintText"></div>
+    </div>
+
+    <div class="toolbar stats-row" id="statsRow">
+      <div class="mini" id="stats">
+        <div class="stats-top">
+          <div class="stats-scales">
+            <button class="mode-btn scale-btn" id="win10Btn">10s</button>
+            <button class="mode-btn scale-btn active" id="win30Btn">30s</button>
+            <button class="mode-btn scale-btn" id="win60Btn">60s</button>
+            <button class="mode-btn scale-btn" id="pauseBtn">Pause</button>
+          </div>
+          <span id="statsText">No data</span>
+          <span id="statsCurrent"></span>
+          <span id="followDebug"></span>
+        </div>
+        <canvas id="sparkline" width="500" height="34"></canvas>
+        <div id="eventTooltip" class="event-tooltip"></div>
+      </div>
+      <div id="taxelSessionPanelHost"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { drawGridMode } from "./js/render/grid.js";
+    import { createUrdfMeshRenderer } from "./js/render/urdf_mesh_renderer.js";
+    import { forceColor as forceColorCore, forceColorRgb, drawArrowCanvas } from "./js/render/primitives.js";
+    import { createAppState } from "./js/core/app_state.js";
+    import { createRosbridgeClient } from "./js/core/rosbridge_client.js";
+    import { buildRuntimeConfig } from "./js/core/runtime_config.js";
+    import { createUiFeedback } from "./js/core/ui_feedback.js";
+    import { updateSmoothedVectors as updateSmoothedVectorsCore } from "./js/core/vector_smoothing.js";
+    import { createTaxelSessionPanel } from "./js/session/taxel_session_panel.js";
+
+    (() => {
+      const runtimeConfig = buildRuntimeConfig(window);
+      const {
+        wsCandidates,
+        taxelViewerWsCandidates,
+        topic,
+        topicNs,
+        xelaRobotDescriptionTopic,
+        xelaTfTopic,
+        xelaTfStaticTopic,
+        xelaRobotDescriptionService,
+        robotRobotDescriptionTopic,
+        robotTfTopic,
+        robotTfStaticTopic,
+        robotRobotDescriptionService,
+        robotModelFixedFrame,
+        defaultFixedFrame,
+        followCamForwardDistance,
+        followCamHeightOffset,
+        followCamLookAhead,
+        followCamForwardSign,
+        simServerNode,
+      } = runtimeConfig;
+
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const urdf3dLayer = document.getElementById("urdf3dLayer");
+      const statusDot = document.getElementById("statusDot");
+      const statusText = document.getElementById("statusText");
+      const statusLine = document.getElementById("statusLine");
+      const modeInfo = document.getElementById("modeInfo");
+      const gridBtn = document.getElementById("gridBtn");
+      const xelaBtn = document.getElementById("xelaBtn");
+      const robotBtn = document.getElementById("robotBtn");
+      const vectorBtn = document.getElementById("vectorBtn");
+      const followBtn = document.getElementById("followBtn");
+      const analysisBtn = document.getElementById("analysisBtn");
+      const simBtn = document.getElementById("simBtn");
+      const simulateRow = document.getElementById("simulateRow");
+      const simRandomBtn = document.getElementById("simRandomBtn");
+      const simSilentBtn = document.getElementById("simSilentBtn");
+      const simStepBtn = document.getElementById("simStepBtn");
+      const simRampBtn = document.getElementById("simRampBtn");
+      const simContactLossBtn = document.getElementById("simContactLossBtn");
+      const simPinchBtn = document.getElementById("simPinchBtn");
+      const simTripodBtn = document.getElementById("simTripodBtn");
+      const simPalmBtn = document.getElementById("simPalmBtn");
+      const simStateBadge = document.getElementById("simStateBadge");
+      const win10Btn = document.getElementById("win10Btn");
+      const win30Btn = document.getElementById("win30Btn");
+      const win60Btn = document.getElementById("win60Btn");
+      const pauseBtn = document.getElementById("pauseBtn");
+      const statsRow = document.getElementById("statsRow");
+      const statsText = document.getElementById("statsText");
+      const statsCurrent = document.getElementById("statsCurrent");
+      const sparkline = document.getElementById("sparkline");
+      const sparkCtx = sparkline?.getContext("2d");
+      const eventTooltip = document.getElementById("eventTooltip");
+      const followDebug = document.getElementById("followDebug");
+      const briefStats = document.getElementById("briefStats");
+      const topicInfo = document.getElementById("topicInfo");
+      const hintText = document.getElementById("hintText");
+      const legendTitle = document.getElementById("legendTitle");
+      const reconnectBtn = document.getElementById("reconnectBtn");
+      const rebaselineBtn = document.getElementById("rebaselineBtn");
+      const baselineStatusEl = document.getElementById("baselineStatus");
+
+      topicInfo.textContent = `${topic} | xela:${xelaTfTopic} robot:${robotTfTopic} via ${wsCandidates.join(" | ")}`;
+
+      const state = createAppState(runtimeConfig);
+      window.__xelaAppState = state; // TEMP DIAGNOSTIC (2026-08-24)
+      state.gridVectorMode = "xy";
+      state.urdf3dVisible = false;
+      state.urdfRenderFailSinceMs = 0;
+      const timelineState = {
+        samplePeriodMs: 100,
+        windowMs: 30000,
+        lastSampleMs: 0,
+        paused: false,
+        pausedNowMs: 0,
+        points: [],
+        events: [],
+        lastEventStamp: NaN,
+        lastEventKey: "",
+      };
+      const hoverState = {
+        inside: false,
+        x: 0,
+        y: 0,
+      };
+      const analysisState = {
+        visible: true,
+      };
+      const analysisEventState = {
+        contactThreshold: 0.14,
+        lastContactActive: false,
+        lastSlipActive: false,
+        lastSlipTriggerCount: NaN,
+        currentPhase: "",
+      };
+      const followCamState = {
+        enabled: false,
+        manualOrbitActive: false,
+        captureViewOnNextUpdate: false,
+        // DG-5F FollowCam pinch reference: f1 fingertip and f2 fingertip modules
+        // (played the role AH's thumb-tip(03)/index-tip(13) modules did).
+        tipModuleF1Regex: /_f1_dg5f_ft_/,
+        tipModuleF2Regex: /_f2_dg5f_ft_/,
+        tipModulePalmRegex: /_palm_uSPa46_/,
+        forwardSign: followCamForwardSign,
+        forwardDistance: followCamForwardDistance,
+        heightOffset: followCamHeightOffset,
+        lookAhead: followCamLookAhead,
+        lookUp: 0.0,
+        positionLerp: 0.24,
+        targetLerp: 0.26,
+        targetBaseLerp: 0.30,
+        forwardLerp: 0.22,
+        maxCamStep: 0.030,
+        maxTargetStep: 0.024,
+        tipFallbackDistance: 0.045,
+        minPosDeadband: 0.0001,
+        minForwardDeg: 0.8,
+        jumpRejectDist: 0.16,
+        jumpRejectLimit: 2,
+        jumpRejectCount: 0,
+        filteredTargetBase: null,
+        filteredForward: null,
+        lastCameraGoal: null,
+        lastTargetGoal: null,
+        userCameraOffsetLocal: null,
+        userTargetOffsetLocal: null,
+        snapOnEnable: false,
+        debugText: "",
+        debugLastUpdateMs: 0.0,
+        debugUpdatePeriodMs: 120.0,
+      };
+      let lastStatsCurrentText = "";
+      const uiFeedback = createUiFeedback({
+        state,
+        statusTextEl: statusText,
+        statusDotEl: statusDot,
+        hintTextEl: hintText,
+        modeInfoEl: modeInfo,
+      });
+      setTimelineWindowMs(30000);
+      setTimelinePaused(false, performance.now());
+      setAnalysisVisible(true);
+
+      function safeErrorText(reason) {
+        if (!reason) return "unknown";
+        if (typeof reason === "string") return reason;
+        if (reason && typeof reason.message === "string" && reason.message.length > 0) {
+          return reason.message;
+        }
+        try {
+          return JSON.stringify(reason);
+        } catch (_) {
+          return String(reason);
+        }
+      }
+
+      function clamp(v, lo, hi) {
+        return Math.max(lo, Math.min(hi, v));
+      }
+
+      function formatVec3(vec) {
+        if (!vec) return "[-,-,-]";
+        return `[${vec.x.toFixed(3)},${vec.y.toFixed(3)},${vec.z.toFixed(3)}]`;
+      }
+
+      function updateFollowDebugUi() {
+        if (!followDebug) return;
+        if (state.uiMode === "robot" && followCamState.enabled && followCamState.debugText) {
+          followDebug.textContent = followCamState.debugText;
+          followDebug.title = followCamState.debugText;
+          return;
+        }
+        followDebug.textContent = "";
+        followDebug.title = "";
+      }
+
+      function setFollowDebugText(text) {
+        const next = String(text || "");
+        if (followCamState.debugText === next) {
+          return;
+        }
+        followCamState.debugText = next;
+        updateFollowDebugUi();
+      }
+
+      function setFollowDebugTextThrottled(nowMs, text) {
+        if ((nowMs - followCamState.debugLastUpdateMs) < followCamState.debugUpdatePeriodMs) {
+          return;
+        }
+        followCamState.debugLastUpdateMs = nowMs;
+        setFollowDebugText(text);
+      }
+
+      function syncSparkCanvasSize() {
+        if (!sparkline) return;
+        const w = Math.max(140, Math.round(sparkline.clientWidth || 0));
+        const h = Math.max(24, Math.round(sparkline.clientHeight || 0));
+        if (sparkline.width !== w || sparkline.height !== h) {
+          sparkline.width = w;
+          sparkline.height = h;
+        }
+      }
+
+      function setAnalysisVisible(visible) {
+        analysisState.visible = Boolean(visible);
+        if (statsRow) {
+          statsRow.style.display = analysisState.visible ? "" : "none";
+        }
+        analysisBtn?.classList.toggle("active", analysisState.visible);
+        if (!analysisState.visible) {
+          setEventTooltipVisible(false);
+        }
+      }
+
+      function setEventTooltipVisible(visible) {
+        if (!eventTooltip) return;
+        eventTooltip.style.display = visible ? "block" : "none";
+      }
+
+      function getEventMarkerScreenX(nowMs, eventTimeMs) {
+        const w = sparkline.width;
+        const padX = 3.0;
+        const innerW = Math.max(1, w - padX * 2);
+        const ageMs = nowMs - eventTimeMs;
+        if (ageMs < 0.0 || ageMs > timelineState.windowMs) {
+          return NaN;
+        }
+        return padX + (1.0 - ageMs / timelineState.windowMs) * innerW;
+      }
+
+      function findNearestEventForHover(nowMs, mouseX) {
+        if (!timelineState.events.length) return null;
+        let nearest = null;
+        let bestDist = Number.POSITIVE_INFINITY;
+        for (const evt of timelineState.events) {
+          const x = getEventMarkerScreenX(nowMs, evt.t);
+          if (!Number.isFinite(x)) continue;
+          const d = Math.abs(mouseX - x);
+          if (
+            d < bestDist ||
+            (Math.abs(d - bestDist) < 0.5 && (evt.priority || 0) > ((nearest && nearest.priority) || 0))
+          ) {
+            bestDist = d;
+            nearest = { ...evt, x };
+          }
+        }
+        if (!nearest || bestDist > 12.0) return null;
+        return nearest;
+      }
+
+      function updateEventTooltip(nowMs) {
+        if (!eventTooltip || !sparkline || !hoverState.inside || !analysisState.visible) {
+          setEventTooltipVisible(false);
+          return;
+        }
+        const evt = findNearestEventForHover(nowMs, hoverState.x);
+        if (!evt) {
+          setEventTooltipVisible(false);
+          return;
+        }
+
+        const ageSec = Math.max(0.0, (nowMs - evt.t) / 1000.0);
+        const lines = [];
+        lines.push(`${evt.label} (${evt.eventName || "event"})`);
+        if (evt.phase) lines.push(`phase: ${evt.phase}`);
+        if (evt.source) lines.push(`source: ${evt.source}`);
+        if (evt.note) lines.push(`note: ${evt.note}`);
+        lines.push(`age: ${ageSec.toFixed(2)}s`);
+        eventTooltip.textContent = lines.join("\n");
+
+        const left = Math.min(
+          Math.max(4.0, evt.x + 10.0),
+          Math.max(4.0, (sparkline.clientWidth || 300) - 210.0),
+        );
+        const top = Math.max(4.0, hoverState.y - 38.0);
+        eventTooltip.style.left = `${left}px`;
+        eventTooltip.style.top = `${top}px`;
+        setEventTooltipVisible(true);
+      }
+
+      function setTimelineWindowMs(ms) {
+        timelineState.windowMs = Math.max(5000, Number(ms) || 30000);
+        win10Btn?.classList.toggle("active", timelineState.windowMs === 10000);
+        win30Btn?.classList.toggle("active", timelineState.windowMs === 30000);
+        win60Btn?.classList.toggle("active", timelineState.windowMs === 60000);
+      }
+
+      function getTimelineNowMs(nowMs) {
+        return timelineState.paused ? timelineState.pausedNowMs : nowMs;
+      }
+
+      function setTimelinePaused(paused, nowMs = performance.now()) {
+        timelineState.paused = Boolean(paused);
+        if (timelineState.paused) {
+          timelineState.pausedNowMs = nowMs;
+        } else {
+          timelineState.lastSampleMs = nowMs;
+        }
+        pauseBtn?.classList.toggle("active", timelineState.paused);
+        if (pauseBtn) {
+          pauseBtn.textContent = timelineState.paused ? "Resume" : "Pause";
+        }
+      }
+
+      function pruneTimeline(nowMs) {
+        const cutoff = nowMs - timelineState.windowMs;
+        timelineState.points = timelineState.points.filter((p) => Number.isFinite(p.t) && p.t >= cutoff);
+        timelineState.events = timelineState.events.filter((e) => Number.isFinite(e.t) && e.t >= cutoff);
+      }
+
+      function extractModuleIdFromFrame(frameId) {
+        const normalized = String(frameId || "").toLowerCase();
+        if (!normalized) return "";
+        const patterns = [
+          /(?:^|_)base_x_taxel_(?:\d+_)?(\d{1,2})(?:_|$)/,
+          /(?:^|_)x_taxel_(?:\d+_)?(\d{1,2})(?:_|$)/,
+          /(?:^|_)base_x_base_(?:\d+_)?(\d{1,2})(?:_|$)/,
+          /(?:^|_)x_base_(?:\d+_)?(\d{1,2})(?:_|$)/,
+          /(?:^|_)module_(\d{1,2})(?:_|$)/,
+        ];
+        for (const pattern of patterns) {
+          const match = normalized.match(pattern);
+          if (match && match[1]) {
+            return match[1].padStart(2, "0").slice(-2);
+          }
+        }
+        return "";
+      }
+
+      function computeAnalysisTelemetry(payload) {
+        const points = Array.isArray(payload?.urdf?.points)
+          ? payload.urdf.points
+          : (Array.isArray(payload?.grid?.points) ? payload.grid.points : []);
+        if (!points.length) {
+          return null;
+        }
+        let normSum = 0.0;
+        let normCount = 0;
+        let fzSum = 0.0;
+        let activeCount = 0;
+        let tipF1Max = Number.NEGATIVE_INFINITY;
+        let tipF2Max = Number.NEGATIVE_INFINITY;
+        for (const p of points) {
+          const norm = Number(p?.norm);
+          const fz = Number(p?.fz);
+          if (Number.isFinite(norm)) {
+            normSum += norm;
+            normCount += 1;
+            if (norm >= 0.12) {
+              activeCount += 1;
+            }
+          }
+          if (Number.isFinite(fz)) {
+            fzSum += fz;
+          }
+          const moduleId = extractModuleIdFromFrame(p?.frame_id);
+          if (moduleId === "f1_dg5f_ft" && Number.isFinite(norm)) {
+            tipF1Max = Math.max(tipF1Max, norm);
+          } else if (moduleId === "f2_dg5f_ft" && Number.isFinite(norm)) {
+            tipF2Max = Math.max(tipF2Max, norm);
+          }
+        }
+        const normMean = normCount > 0 ? normSum / normCount : NaN;
+        return {
+          pointCount: points.length,
+          normMean,
+          fzSum,
+          activeCount,
+          tipF1Norm: Number.isFinite(tipF1Max) ? tipF1Max : NaN,
+          tipF2Norm: Number.isFinite(tipF2Max) ? tipF2Max : NaN,
+        };
+      }
+
+      function sampleTimeline(telemetry, nowMs) {
+        if (!telemetry || !sparkCtx) return;
+        if (timelineState.paused) return;
+        if ((nowMs - timelineState.lastSampleMs) < timelineState.samplePeriodMs) return;
+        timelineState.points.push({
+          t: nowMs,
+          normMean: Number(telemetry.normMean),
+          fzSum: Number(telemetry.fzSum),
+          tipF1Norm: Number(telemetry.tipF1Norm),
+          tipF2Norm: Number(telemetry.tipF2Norm),
+        });
+        timelineState.lastSampleMs = nowMs;
+      }
+
+      function classifyAhEventMarker(eventName, options = {}) {
+        const normalized = String(eventName || "event").trim().toLowerCase();
+        const kindHint = String(options.kind || "").trim().toLowerCase();
+        const explicit = Boolean(options.explicit);
+        const priorityBase = explicit ? 100 : 0;
+
+        if (kindHint === "contact" || normalized.includes("contact")) {
+          return { label: "CONTACT", kind: "contact", tag: "C", explicit, priority: priorityBase + 20 };
+        }
+        if (
+          kindHint === "release" ||
+          normalized === "contact_released" ||
+          normalized.includes("release") ||
+          normalized.includes("open")
+        ) {
+          return { label: "RELEASE", kind: "release", tag: "R", explicit, priority: priorityBase + 18 };
+        }
+        if (kindHint === "slip" || normalized === "slip_warning" || normalized === "slip_active") {
+          return { label: "SLIP_WARNING", kind: "slip", tag: "S", explicit, priority: priorityBase + 30 };
+        }
+        if (
+          kindHint === "recovery" ||
+          normalized.includes("recover") ||
+          normalized.includes("abort") ||
+          normalized.includes("failure")
+        ) {
+          return { label: String(eventName || "recovery").toUpperCase(), kind: "explicit-recovery", tag: "!", explicit, priority: priorityBase + 26 };
+        }
+        if (kindHint === "success" || normalized.includes("complete") || normalized.includes("success")) {
+          return { label: String(eventName || "complete").toUpperCase(), kind: "explicit-success", tag: "D", explicit, priority: priorityBase + 24 };
+        }
+        if (kindHint === "grasp" || normalized.includes("grasp") || normalized.includes("pinch") || normalized.includes("force")) {
+          return { label: String(eventName || "grasp").toUpperCase(), kind: "explicit-grasp", tag: "G", explicit, priority: priorityBase + 22 };
+        }
+        if (
+          kindHint === "system" ||
+          normalized.includes("impedance") ||
+          normalized.includes("slip_reflex") ||
+          normalized.includes("filter") ||
+          normalized.includes("target_force")
+        ) {
+          return { label: String(eventName || "system").toUpperCase(), kind: "explicit-system", tag: "T", explicit, priority: priorityBase + 16 };
+        }
+        if (kindHint === "motion" || normalized.includes("approach") || normalized.includes("retreat") || normalized.includes("home")) {
+          return { label: String(eventName || "motion").toUpperCase(), kind: "explicit-motion", tag: normalized.includes("home") ? "H" : "M", explicit, priority: priorityBase + 14 };
+        }
+        if (explicit) {
+          return { label: String(eventName || "event").toUpperCase(), kind: "explicit", tag: "E", explicit, priority: priorityBase + 12 };
+        }
+        return { label: String(eventName || "event").toUpperCase(), kind: "event", tag: "E", explicit, priority: 10 };
+      }
+
+      function normalizePhaseName(phase) {
+        return String(phase || "").trim().toLowerCase();
+      }
+
+      function isPinchInferencePhase(phase) {
+        const normalized = normalizePhaseName(phase);
+        return normalized.includes("grasp") || normalized.includes("pinch");
+      }
+
+      function hasNearbyExplicitEvent(eventTimeMs, windowMs = 450.0) {
+        return timelineState.events.some(
+          (evt) =>
+            evt.explicit &&
+            Number.isFinite(evt.t) &&
+            Math.abs(evt.t - eventTimeMs) <= windowMs,
+        );
+      }
+
+      function registerAnalysisEvent(eventName, nowMs, options = {}) {
+        if (timelineState.paused) return null;
+        const marker = classifyAhEventMarker(eventName, options);
+        const rawStamp = Number(options.stamp);
+        const eventKey = Number.isFinite(rawStamp)
+          ? `${eventName}|${rawStamp.toFixed(3)}`
+          : `${eventName}|${Math.round(nowMs)}|${String(options.note || "")}`;
+        if (eventKey === timelineState.lastEventKey) {
+          return null;
+        }
+        timelineState.lastEventKey = eventKey;
+        if (Number.isFinite(rawStamp)) {
+          timelineState.lastEventStamp = rawStamp;
+        }
+
+        const age = Number(options.eventAgeMs);
+        const eventTime = Number.isFinite(age) && age >= 0.0 ? (nowMs - age) : nowMs;
+        if (marker.explicit) {
+          timelineState.events = timelineState.events.filter(
+            (evt) => evt.explicit || !Number.isFinite(evt.t) || Math.abs(evt.t - eventTime) > 450.0,
+          );
+        }
+        timelineState.events.push({
+          t: eventTime,
+          label: marker.label,
+          kind: marker.kind,
+          tag: marker.tag,
+          explicit: marker.explicit,
+          priority: marker.priority,
+          eventName: String(eventName || ""),
+          phase: String(options.phase || ""),
+          note: String(options.note || ""),
+          source: String(options.source || ""),
+        });
+        return marker;
+      }
+
+      function ingestAnalysisEvents(payload, telemetry, nowMs) {
+        if (!analysisState.visible) return;
+        const explicitGraspEvent = payload?.meta?.grasp_event;
+        if (explicitGraspEvent && typeof explicitGraspEvent === "object") {
+          const explicitEventName =
+            typeof explicitGraspEvent.event === "string" && explicitGraspEvent.event.trim()
+              ? explicitGraspEvent.event.trim()
+              : "grasp_event";
+          const explicitPhase = String(explicitGraspEvent.phase || "");
+          if (explicitPhase.trim()) {
+            analysisEventState.currentPhase = explicitPhase;
+          }
+          registerAnalysisEvent(explicitEventName, nowMs, {
+            stamp: Number(explicitGraspEvent.stamp),
+            eventAgeMs: Number(payload?.meta?.grasp_event_age_ms),
+            source: String(explicitGraspEvent.source || "objective"),
+            phase: explicitPhase,
+            kind: String(explicitGraspEvent.kind || ""),
+            note: String(explicitGraspEvent.note || ""),
+            explicit: true,
+          });
+        }
+
+        const tipF1 = Number(telemetry?.tipF1Norm);
+        const tipF2 = Number(telemetry?.tipF2Norm);
+        const contactActive =
+          Number.isFinite(tipF1) &&
+          Number.isFinite(tipF2) &&
+          tipF1 >= analysisEventState.contactThreshold &&
+          tipF2 >= analysisEventState.contactThreshold;
+        const allowContactInference = isPinchInferencePhase(analysisEventState.currentPhase);
+
+        if (!allowContactInference) {
+          analysisEventState.lastContactActive = false;
+        }
+
+        if (allowContactInference && contactActive && !analysisEventState.lastContactActive) {
+          if (!hasNearbyExplicitEvent(nowMs)) {
+            registerAnalysisEvent("contact_detected", nowMs, {
+              note: `tipF1=${tipF1.toFixed(3)} tipF2=${tipF2.toFixed(3)}`,
+              source: "taxel",
+              phase: analysisEventState.currentPhase || "pinch",
+            });
+          }
+        } else if (allowContactInference && !contactActive && analysisEventState.lastContactActive) {
+          if (!hasNearbyExplicitEvent(nowMs)) {
+            registerAnalysisEvent("contact_released", nowMs, {
+              source: "taxel",
+              phase: analysisEventState.currentPhase || "release",
+            });
+          }
+        }
+        if (allowContactInference) {
+          analysisEventState.lastContactActive = contactActive;
+        }
+
+        const slipMeta = payload?.meta?.slip;
+        if (!slipMeta || typeof slipMeta !== "object") {
+          analysisEventState.lastSlipActive = false;
+          return;
+        }
+
+        const slipActive = Boolean(slipMeta.active || slipMeta.reflex_output_active);
+        const triggerCount = Number(slipMeta.trigger_count);
+        const confidence = Number(slipMeta.confidence);
+        const slipAgeMs = Number(payload?.meta?.slip_age_ms);
+        const mode = typeof slipMeta.slip_mode === "string" ? slipMeta.slip_mode : "";
+
+        const triggerCountChanged =
+          Number.isFinite(triggerCount) &&
+          (!Number.isFinite(analysisEventState.lastSlipTriggerCount) ||
+            triggerCount > analysisEventState.lastSlipTriggerCount);
+        if (triggerCountChanged || (slipActive && !analysisEventState.lastSlipActive)) {
+          if (!hasNearbyExplicitEvent(nowMs)) {
+            const note = Number.isFinite(confidence) ? `confidence=${confidence.toFixed(3)}` : "";
+            registerAnalysisEvent("slip_warning", nowMs, {
+              stamp: Number.isFinite(triggerCount) ? triggerCount : Number.NaN,
+              eventAgeMs: slipAgeMs,
+              source: "xela_atag_slip_detector",
+              phase: mode,
+              note,
+            });
+          }
+        }
+        analysisEventState.lastSlipActive = slipActive;
+        if (Number.isFinite(triggerCount)) {
+          analysisEventState.lastSlipTriggerCount = triggerCount;
+        }
+      }
+
+      function getSeriesRange(values) {
+        const finite = values.filter((v) => Number.isFinite(v));
+        if (finite.length === 0) {
+          return null;
+        }
+        const min = Math.min(...finite);
+        const max = Math.max(...finite);
+        if (Math.abs(max - min) < 1e-9) {
+          const base = Math.max(1e-6, Math.abs(max) * 0.2);
+          return { min: min - base, max: max + base };
+        }
+        return { min, max };
+      }
+
+      function drawTimelineSeries(nowMs, key, color) {
+        if (!sparkCtx || timelineState.points.length === 0) return false;
+        const values = timelineState.points.map((p) => Number(p[key]));
+        const rangeInfo = getSeriesRange(values);
+        if (!rangeInfo) return false;
+
+        const w = sparkline.width;
+        const h = sparkline.height;
+        const padX = 3.0;
+        const padY = 4.0;
+        const innerW = Math.max(1, w - padX * 2);
+        const innerH = Math.max(1, h - padY * 2);
+        const range = Math.max(1e-9, rangeInfo.max - rangeInfo.min);
+
+        sparkCtx.strokeStyle = color;
+        sparkCtx.lineWidth = 1.5;
+        sparkCtx.beginPath();
+        let penDown = false;
+        for (const p of timelineState.points) {
+          const raw = Number(p[key]);
+          if (!Number.isFinite(raw)) {
+            penDown = false;
+            continue;
+          }
+          const ageMs = nowMs - p.t;
+          if (ageMs < 0.0 || ageMs > timelineState.windowMs) {
+            continue;
+          }
+          const x = padX + (1.0 - ageMs / timelineState.windowMs) * innerW;
+          const y = padY + (1.0 - (raw - rangeInfo.min) / range) * innerH;
+          if (!penDown) {
+            sparkCtx.moveTo(x, y);
+            penDown = true;
+          } else {
+            sparkCtx.lineTo(x, y);
+          }
+        }
+        sparkCtx.stroke();
+        return true;
+      }
+
+      function drawEventMarkers(nowMs) {
+        if (!sparkCtx || timelineState.events.length === 0) return;
+        const w = sparkline.width;
+        const h = sparkline.height;
+        const padX = 3.0;
+        const innerW = Math.max(1, w - padX * 2);
+        const drawEvents = timelineState.events
+          .slice()
+          .sort((a, b) => ((a.priority || 0) - (b.priority || 0)) || (a.t - b.t));
+        for (const evt of drawEvents) {
+          const ageMs = nowMs - evt.t;
+          if (ageMs < 0.0 || ageMs > timelineState.windowMs) {
+            continue;
+          }
+          const x = padX + (1.0 - ageMs / timelineState.windowMs) * innerW;
+          const color = evt.kind === "contact"
+            ? "#22d3ee"
+            : (evt.kind === "release"
+              ? "#94a3b8"
+              : (evt.kind === "slip"
+                ? "#ef4444"
+                : (evt.kind === "explicit-motion"
+                  ? "#60a5fa"
+                  : (evt.kind === "explicit-grasp"
+                    ? "#f59e0b"
+                    : (evt.kind === "explicit-system"
+                      ? "#14b8a6"
+                      : (evt.kind === "explicit-recovery"
+                        ? "#f97316"
+                        : (evt.kind === "explicit-success" ? "#22c55e" : "#cbd5e1")))))));
+          sparkCtx.strokeStyle = color;
+          sparkCtx.lineWidth = evt.explicit ? 1.8 : (evt.kind === "slip" ? 1.4 : 1.0);
+          sparkCtx.beginPath();
+          sparkCtx.moveTo(x, 12.0);
+          sparkCtx.lineTo(x, h - 2.0);
+          sparkCtx.stroke();
+
+          const tag = String(evt.tag || "E").slice(0, 1).toUpperCase();
+          sparkCtx.fillStyle = color;
+          sparkCtx.fillRect(x + 1.0, 12.0, 8.0, 8.0);
+          sparkCtx.fillStyle = "#0b1222";
+          sparkCtx.font = "8px ui-monospace, SFMono-Regular, Menlo, monospace";
+          sparkCtx.fillText(tag, x + 3.0, 18.0);
+        }
+      }
+
+      function drawSparkline(nowMs) {
+        if (!sparkCtx) return;
+        syncSparkCanvasSize();
+        sparkCtx.clearRect(0, 0, sparkline.width, sparkline.height);
+        sparkCtx.fillStyle = "#0a1627";
+        sparkCtx.fillRect(0, 0, sparkline.width, sparkline.height);
+        sparkCtx.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
+        sparkCtx.fillStyle = "#f59e0b";
+        sparkCtx.fillText("norm_mean", 5, 10);
+        sparkCtx.fillStyle = "#22d3ee";
+        sparkCtx.fillText("fz_sum", 70, 10);
+        sparkCtx.fillStyle = "#94a3b8";
+        sparkCtx.fillText(
+          `tw=${Math.round(timelineState.windowMs / 1000)}s${timelineState.paused ? " paused" : ""}`,
+          Math.max(120, sparkline.width - 120),
+          10,
+        );
+
+        pruneTimeline(nowMs);
+        const hasNorm = timelineState.points.some((p) => Number.isFinite(p.normMean));
+        const hasFz = timelineState.points.some((p) => Number.isFinite(p.fzSum));
+        if (!hasNorm && !hasFz) {
+          drawEventMarkers(nowMs);
+          sparkCtx.fillStyle = "#64748b";
+          sparkCtx.fillText("no telemetry", Math.max(72, sparkline.width - 92), 10);
+          updateEventTooltip(nowMs);
+          return;
+        }
+        drawTimelineSeries(nowMs, "normMean", "#f59e0b");
+        drawTimelineSeries(nowMs, "fzSum", "#22d3ee");
+        drawEventMarkers(nowMs);
+        updateEventTooltip(nowMs);
+      }
+
+      function normalizeFrameId(frameId) {
+        if (!frameId) return "";
+        return String(frameId).replace(/^\/+/, "").trim();
+      }
+
+      function getUrdfSourceForUiMode() {
+        return state.uiMode === "robot" ? "robot" : "xela";
+      }
+
+      function getActiveUrdfSource() {
+        return state.urdfSources[getUrdfSourceForUiMode()];
+      }
+
+      function bindActiveUrdfSourceToMesh(force = false) {
+        const src = getActiveUrdfSource();
+        const m = state.urdfMesh;
+        const sourceChanged = m.boundSourceName !== src.name;
+        const descChanged = m.boundRobotDescriptionVersion !== src.robotDescriptionVersion;
+        if (force || sourceChanged || descChanged) {
+          m.boundSourceName = src.name;
+          m.boundRobotDescriptionVersion = src.robotDescriptionVersion;
+          m.robotDescriptionXml = src.robotDescriptionXml;
+          m.robotBuilt = false;
+          m.failReason = "";
+          m.autoFrameDone = false;
+          m.markerMap.clear();
+          m.markerGroup?.clear?.();
+          m.linkGroups.clear();
+          m.linkModuleMap.clear();
+          m.linkUrdfColorMap.clear();
+          m.linkMeshMap.clear();
+          m.activeModuleIds = new Set();
+          m.lastHighlightSignature = "";
+          m.robotGroup?.clear?.();
+        }
+        m.tfEdges = src.tfEdges;
+        m.frameAliasCache = src.frameAliasCache;
+      }
+
+      function getFrameLeafName(frame) {
+        const text = normalizeFrameId(frame);
+        if (!text) return "";
+        const parts = text.split(/[/:]/).filter(Boolean);
+        return parts.length ? parts[parts.length - 1] : text;
+      }
+
+      function resolveChildFrameAlias(frame) {
+        const m = state.urdfMesh;
+        const clean = normalizeFrameId(frame);
+        if (!clean) return "";
+        if (m.tfEdges.has(clean)) {
+          return clean;
+        }
+        if (m.frameAliasCache.has(clean)) {
+          return m.frameAliasCache.get(clean);
+        }
+        const leaf = getFrameLeafName(clean);
+        let match = "";
+        for (const key of m.tfEdges.keys()) {
+          const keyLeaf = getFrameLeafName(key);
+          if (keyLeaf !== leaf) continue;
+          if (!match) {
+            match = key;
+          } else if (match !== key) {
+            m.frameAliasCache.set(clean, "");
+            return "";
+          }
+        }
+        m.frameAliasCache.set(clean, match || "");
+        return match || "";
+      }
+
+      function selectFixedFrame(activeSource, payloadFixedFrame) {
+        const m = state.urdfMesh;
+        const payloadFixed = normalizeFrameId(payloadFixedFrame || "");
+        const childSet = new Set(m.tfEdges.keys());
+        const parentSet = new Set();
+        const childrenByParent = new Map();
+        for (const [child, edge] of m.tfEdges.entries()) {
+          const parent = normalizeFrameId(edge.parent);
+          if (!parent) continue;
+          parentSet.add(parent);
+          if (!childrenByParent.has(parent)) {
+            childrenByParent.set(parent, []);
+          }
+          childrenByParent.get(parent).push(normalizeFrameId(child));
+        }
+        const frameExists = (name) => {
+          if (!name) return false;
+          return childSet.has(name) || parentSet.has(name);
+        };
+
+        const preferred = [];
+        if (state.uiMode === "robot") {
+          const rootLink = normalizeFrameId(activeSource?.robotRootLink || "");
+          if (rootLink) {
+            const aliasedRoot = resolveChildFrameAlias(rootLink) || rootLink;
+            preferred.push(aliasedRoot);
+          }
+          if (robotModelFixedFrame) preferred.push(robotModelFixedFrame);
+          if (payloadFixed) preferred.push(payloadFixed);
+          preferred.push("world", "base_link");
+        } else {
+          if (payloadFixed) preferred.push(payloadFixed);
+          preferred.push(defaultFixedFrame);
+        }
+        for (const name of preferred) {
+          const clean = normalizeFrameId(name);
+          if (frameExists(clean)) return clean;
+        }
+
+        const roots = [];
+        for (const p of parentSet) {
+          if (!childSet.has(p)) roots.push(p);
+        }
+        if (roots.length > 0) {
+          const memo = new Map();
+          const visit = new Set();
+          const scoreRoot = (root) => {
+            if (memo.has(root)) return memo.get(root);
+            if (visit.has(root)) return 0;
+            visit.add(root);
+            let total = 1;
+            const children = childrenByParent.get(root) || [];
+            for (const child of children) {
+              if (child) total += scoreRoot(child);
+            }
+            visit.delete(root);
+            memo.set(root, total);
+            return total;
+          };
+          roots.sort((a, b) => scoreRoot(b) - scoreRoot(a) || a.localeCompare(b));
+          return roots[0];
+        }
+
+        if (childSet.size > 0) {
+          return Array.from(childSet).sort()[0];
+        }
+        return payloadFixed || normalizeFrameId(defaultFixedFrame || "world") || "world";
+      }
+
+      function onFollowOrbitInteraction(interactionType) {
+        if (!followCamState.enabled || state.uiMode !== "robot") {
+          return;
+        }
+        if (interactionType === "start" || interactionType === "pointerdown") {
+          followCamState.manualOrbitActive = true;
+          followCamState.captureViewOnNextUpdate = true;
+          return;
+        }
+        if (interactionType === "end") {
+          followCamState.manualOrbitActive = false;
+          followCamState.captureViewOnNextUpdate = true;
+          return;
+        }
+        if (interactionType === "wheel") {
+          followCamState.captureViewOnNextUpdate = true;
+        }
+      }
+
+      function setFollowCamEnabled(enabled) {
+        const next = Boolean(enabled);
+        if (followCamState.enabled === next) {
+          return;
+        }
+        followCamState.enabled = next;
+        followCamState.manualOrbitActive = false;
+        followCamState.captureViewOnNextUpdate = false;
+        followCamState.jumpRejectCount = 0;
+        followCamState.filteredTargetBase = null;
+        followCamState.filteredForward = null;
+        followCamState.lastCameraGoal = null;
+        followCamState.lastTargetGoal = null;
+        followCamState.userCameraOffsetLocal = null;
+        followCamState.userTargetOffsetLocal = null;
+        followCamState.snapOnEnable = next;
+        followCamState.debugLastUpdateMs = 0.0;
+        if (next) {
+          setHintText("FollowCam enabled: thumb/index fingertip tracking.");
+          setFollowDebugText("fc waiting: tip frames 03/13...");
+        } else {
+          setHintText("FollowCam disabled: RobotModel fixed orbit mode.");
+          setFollowDebugText("");
+          if (state.uiMode === "robot") {
+            const m = state.urdfMesh;
+            if (m.ready) {
+              m.autoFrameDone = false;
+              autoFrameUrdfMeshCamera(true);
+            }
+          }
+        }
+        applyOrbitProfileForMode();
+        updateModeButtons();
+      }
+
+      function computeModuleCenterFromTf(points, moduleId, fixedFrame, strictCache, strictVisiting) {
+        let x = 0.0;
+        let y = 0.0;
+        let z = 0.0;
+        let n = 0;
+        const seenFrames = new Set();
+        for (const p of points) {
+          const idFromFrame = extractModuleIdFromName(p?.frame_id);
+          if (idFromFrame !== moduleId) continue;
+          const rawFrame = normalizeFrameId(p?.frame_id);
+          if (!rawFrame) continue;
+          const frame = resolveChildFrameAlias(rawFrame) || rawFrame;
+          if (!frame || seenFrames.has(frame)) continue;
+          seenFrames.add(frame);
+          // FollowCam never activated in RobotModel mode (2026-08-24) because
+          // this used to call resolveFrameToFixed directly -- the robot
+          // source's tf never has an edge for individual taxel dot frames
+          // (only their housing links), so this always returned null here.
+          // resolveTaxelFixedFramePoseRobust falls back to composing the
+          // housing's robot-source pose with the taxel's xela-source local
+          // offset, the same fix already applied to marker placement.
+          let tf = resolveTaxelFixedFramePoseRobust(frame, fixedFrame, strictCache, strictVisiting);
+          if (!tf) {
+            tf = resolveFrameToFixed(frame, fixedFrame, strictCache, strictVisiting, true);
+          }
+          if (!tf) continue;
+          x += tf.tx;
+          y += tf.ty;
+          z += tf.tz;
+          n += 1;
+        }
+        if (n <= 0) return null;
+        return { x: x / n, y: y / n, z: z / n };
+      }
+
+      function updateFollowCamera(nowMs) {
+        if (!followCamState.enabled || state.uiMode !== "robot") {
+          return;
+        }
+        const m = state.urdfMesh;
+        if (!m.ready || !m.controls || !m.camera || !m.THREE) {
+          setFollowDebugTextThrottled(nowMs, "fc waiting: URDF mesh renderer not ready");
+          return;
+        }
+        const fixedFrame = normalizeFrameId(m.fixedFrame || defaultFixedFrame || "world");
+        const strictCache = new Map();
+        const strictVisiting = new Set();
+        const points = Array.isArray(state.payload?.urdf?.points) ? state.payload.urdf.points : [];
+        const tipF1 = computeModuleCenterFromTf(points, "f1_dg5f_ft", fixedFrame, strictCache, strictVisiting);
+        const tipF2 = computeModuleCenterFromTf(points, "f2_dg5f_ft", fixedFrame, strictCache, strictVisiting);
+        // DG-5F has a single palm module (palm_uSPa46) rather than AH's 3 palm sub-modules.
+        const palmCenterRaw = computeModuleCenterFromTf(points, "palm_uSPa46", fixedFrame, strictCache, strictVisiting);
+        if (!tipF1 || !tipF2) {
+          setFollowDebugTextThrottled(nowMs, "fc waiting: tipF1/tipF2 unresolved");
+          return;
+        }
+
+        const THREE = m.THREE;
+        const tipF1Vec = new THREE.Vector3(tipF1.x, tipF1.y, tipF1.z);
+        const tipF2Vec = new THREE.Vector3(tipF2.x, tipF2.y, tipF2.z);
+        const targetBaseRaw = tipF1Vec.clone().add(tipF2Vec).multiplyScalar(0.5);
+        if (
+          followCamState.filteredTargetBase &&
+          targetBaseRaw.distanceTo(followCamState.filteredTargetBase) > followCamState.jumpRejectDist
+        ) {
+          followCamState.jumpRejectCount += 1;
+          if (followCamState.jumpRejectCount < followCamState.jumpRejectLimit) {
+            return;
+          }
+          followCamState.filteredTargetBase = targetBaseRaw.clone();
+          followCamState.filteredForward = null;
+          followCamState.lastCameraGoal = null;
+          followCamState.lastTargetGoal = null;
+          followCamState.jumpRejectCount = 0;
+        } else {
+          followCamState.jumpRejectCount = 0;
+        }
+        if (!followCamState.filteredTargetBase) {
+          followCamState.filteredTargetBase = targetBaseRaw.clone();
+        } else {
+          const targetBaseDelta = targetBaseRaw.distanceTo(followCamState.filteredTargetBase);
+          if (targetBaseDelta >= followCamState.minPosDeadband) {
+            followCamState.filteredTargetBase.lerp(targetBaseRaw, followCamState.targetBaseLerp);
+          }
+        }
+        const targetBase = followCamState.filteredTargetBase.clone();
+        const worldUp = new THREE.Vector3(0, 0, 1);
+
+        // Root cause of the dorsal-view-on-activation report (2026-08-24,
+        // corrected after user's own experiment: pre-posing the hand
+        // palm-toward-camera before enabling FollowCam tracked correctly the
+        // entire time, start to finish -- so the per-frame tracking math
+        // itself was never the problem, only what the very first snap used).
+        // "palm_to_tip" (pinch-point minus palm center) is the one reliable
+        // forward estimate; it degenerates toward zero whenever F1/F2 are
+        // closed together. The old code fell back to a "tip_span x
+        // world_up" cross-product guess in that case and used it to both
+        // seed filteredForward AND perform the initial hard snap -- so
+        // whatever the hand's pose happened to be at the exact moment
+        // FollowCam was enabled decided whether that guess was right or
+        // (per the original report) wrong. Fix: never snap or seed
+        // filteredForward off that guess at all -- just wait, doing nothing,
+        // until an actual palm_to_tip sample is available (which is
+        // immediate if the hand already faces the camera, per the user's
+        // test, and otherwise happens the moment the pinch opens/closes
+        // during the grasp motion).
+        let rawForward = null;
+        let forwardSource = "held_last_good";
+        if (palmCenterRaw) {
+          const palmCenter = new THREE.Vector3(palmCenterRaw.x, palmCenterRaw.y, palmCenterRaw.z);
+          const palmToTip = targetBase.clone().sub(palmCenter);
+          if (palmToTip.lengthSq() >= 1e-8) {
+            rawForward = palmToTip;
+            forwardSource = "palm_to_tip";
+          }
+        }
+        if (!rawForward && !followCamState.filteredForward) {
+          setFollowDebugTextThrottled(nowMs, "fc waiting: no reliable palm_to_tip sample yet");
+          return;
+        }
+        if (rawForward) {
+          rawForward.normalize();
+          rawForward.multiplyScalar(followCamState.forwardSign >= 0.0 ? 1.0 : -1.0);
+          if (!followCamState.filteredForward) {
+            followCamState.filteredForward = rawForward.clone();
+          } else {
+            const dot = Math.max(-1.0, Math.min(1.0, followCamState.filteredForward.dot(rawForward)));
+            const angleDeg = Math.acos(dot) * 180.0 / Math.PI;
+            if (angleDeg >= followCamState.minForwardDeg) {
+              followCamState.filteredForward.lerp(rawForward, followCamState.forwardLerp).normalize();
+            }
+          }
+        }
+        // rawForward null here means we already have a filteredForward from
+        // a prior reliable sample (the early-return above covers the only
+        // other case) -- just keep using it unchanged this frame.
+        const forward = followCamState.filteredForward;
+        let rightBasis = forward.clone().cross(worldUp);
+        if (rightBasis.lengthSq() < 1e-8) {
+          rightBasis = new THREE.Vector3(1, 0, 0);
+        }
+        rightBasis.normalize();
+        const upBasis = rightBasis.clone().cross(forward).normalize();
+        const captureLocalOffset = (worldPos) => {
+          const delta = worldPos.clone().sub(targetBase);
+          return {
+            right: delta.dot(rightBasis),
+            up: delta.dot(upBasis),
+            forward: delta.dot(forward),
+          };
+        };
+        const applyLocalOffset = (localOffset) => targetBase
+          .clone()
+          .addScaledVector(rightBasis, localOffset.right)
+          .addScaledVector(upBasis, localOffset.up)
+          .addScaledVector(forward, localOffset.forward);
+
+        if (followCamState.manualOrbitActive || followCamState.captureViewOnNextUpdate) {
+          followCamState.userCameraOffsetLocal = captureLocalOffset(m.camera.position);
+          followCamState.userTargetOffsetLocal = captureLocalOffset(m.controls.target);
+          followCamState.captureViewOnNextUpdate = false;
+          if (followCamState.manualOrbitActive) {
+            setFollowDebugTextThrottled(nowMs, "fc manual orbit: tracking paused");
+            return;
+          }
+        }
+
+        let camGoal;
+        let targetGoal;
+        if (followCamState.userCameraOffsetLocal && followCamState.userTargetOffsetLocal) {
+          camGoal = applyLocalOffset(followCamState.userCameraOffsetLocal);
+          targetGoal = applyLocalOffset(followCamState.userTargetOffsetLocal);
+        } else {
+          camGoal = targetBase
+            .clone()
+            .addScaledVector(forward, followCamState.forwardDistance)
+            .addScaledVector(worldUp, followCamState.heightOffset);
+          targetGoal = targetBase
+            .clone()
+            .addScaledVector(forward, -followCamState.lookAhead)
+            .addScaledVector(worldUp, followCamState.lookUp);
+          if (camGoal.z <= targetGoal.z + 0.01) {
+            camGoal.z = targetGoal.z + 0.01;
+          }
+        }
+
+        setFollowDebugTextThrottled(
+          nowMs,
+          `fc frame=${fixedFrame} src=${forwardSource} tipF1=${formatVec3(tipF1Vec)} tipF2=${formatVec3(tipF2Vec)} fwd=${formatVec3(forward)}`,
+        );
+
+        if (followCamState.snapOnEnable) {
+          // By the time we reach here, forward is guaranteed to be a real
+          // palm_to_tip-derived sample (the early return above waits for
+          // one) -- safe to snap immediately, no artificial settle delay
+          // needed.
+          followCamState.lastCameraGoal = camGoal.clone();
+          followCamState.lastTargetGoal = targetGoal.clone();
+          m.camera.position.copy(camGoal);
+          m.controls.target.copy(targetGoal);
+          m.controls.update();
+          followCamState.snapOnEnable = false;
+          return;
+        }
+
+        followCamState.lastCameraGoal = camGoal.clone();
+        followCamState.lastTargetGoal = targetGoal.clone();
+        const nextCam = m.camera.position.clone().lerp(
+          followCamState.lastCameraGoal,
+          followCamState.positionLerp,
+        );
+        const camDelta = nextCam.clone().sub(m.camera.position);
+        const camStep = camDelta.length();
+        if (camStep > followCamState.maxCamStep) {
+          camDelta.setLength(followCamState.maxCamStep);
+          nextCam.copy(m.camera.position).add(camDelta);
+        }
+        const nextTarget = m.controls.target.clone().lerp(
+          followCamState.lastTargetGoal,
+          followCamState.targetLerp,
+        );
+        const targetDelta = nextTarget.clone().sub(m.controls.target);
+        const targetStep = targetDelta.length();
+        if (targetStep > followCamState.maxTargetStep) {
+          targetDelta.setLength(followCamState.maxTargetStep);
+          nextTarget.copy(m.controls.target).add(targetDelta);
+        }
+        m.camera.position.copy(nextCam);
+        m.controls.target.copy(nextTarget);
+      }
+
+      function updateModeButtons() {
+        gridBtn.classList.toggle("active", state.uiMode === "grid");
+        xelaBtn.classList.toggle("active", state.uiMode === "xela");
+        robotBtn.classList.toggle("active", state.uiMode === "robot");
+        if (followBtn) {
+          const robotMode = state.uiMode === "robot";
+          followBtn.disabled = !robotMode;
+          followBtn.classList.toggle("active", robotMode && followCamState.enabled);
+          followBtn.title = robotMode
+            ? "Follow thumb/index fingertip camera."
+            : "FollowCam is available in RobotModel mode.";
+        }
+        updateFollowDebugUi();
+      }
+
+      function updateVectorModeButton() {
+        if (!vectorBtn) {
+          state.gridVectorMode = "xy";
+          legendTitle.textContent = "Intensity + XY Direction";
+          return;
+        }
+        const isXyz = state.gridVectorMode === "xyz";
+        vectorBtn.classList.toggle("active", isXyz);
+        vectorBtn.textContent = `Vector: ${isXyz ? "XYZ" : "XY"}`;
+        vectorBtn.title = isXyz
+          ? "Grid vector mode: resultant XYZ (length=|xyz|, color/alpha=z)"
+          : "Grid vector mode: XY tangent only";
+        legendTitle.textContent = isXyz
+          ? "Intensity + XYZ Resultant (+Z warm / -Z cool)"
+          : "Intensity + XY Direction";
+      }
+
+      function bumpUrdfRenderEpoch() {
+        state.urdfRenderEpoch += 1;
+      }
+
+      function runUrdfRenderGuarded(payload, callback) {
+        const epoch = ++state.urdfRenderEpoch;
+        renderUrdfMesh(payload).then((okRender) => {
+          if (epoch !== state.urdfRenderEpoch) {
+            return;
+          }
+          callback(okRender);
+        });
+      }
+
+      function setStatus(text, ok) {
+        uiFeedback.setStatus(text, ok);
+      }
+
+      function setHintText(text) {
+        uiFeedback.setHintText(text);
+      }
+
+      function setModeInfoText(text) {
+        uiFeedback.setModeInfoText(text);
+      }
+
+      function forceColor(norm) {
+        return forceColorCore(norm);
+      }
+
+      function resizeCanvas() {
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        const rect = canvas.getBoundingClientRect();
+        const w = Math.max(1, Math.floor(rect.width * dpr));
+        const h = Math.max(1, Math.floor(rect.height * dpr));
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w;
+          canvas.height = h;
+        }
+      }
+
+      function setUrdf3DVisible(visible) {
+        const next = Boolean(visible);
+        if (state.urdf3dVisible === next) {
+          return;
+        }
+        state.urdf3dVisible = next;
+        urdf3dLayer.style.display = next ? "block" : "none";
+        canvas.style.display = next ? "none" : "block";
+        if (next) {
+          resizeUrdfMeshRenderer();
+        }
+      }
+
+      function applyOrbitProfileForMode() {
+        const m = state.urdfMesh;
+        if (!m.ready || !m.controls || !m.camera) return;
+        const isRobotMode = state.uiMode === "robot";
+        const followEnabled = isRobotMode && followCamState.enabled;
+        m.camera.up.set(0, 0, 1);
+        m.controls.enableDamping = !followEnabled;
+        m.controls.screenSpacePanning = true;
+        m.controls.enablePan = true;
+        m.controls.minPolarAngle = 0.02;
+        // Allow bottom-side inspection while avoiding singularity at exact PI.
+        m.controls.maxPolarAngle = Math.PI - 0.02;
+        m.controls.minDistance = 0.04;
+        m.controls.maxDistance = 4.0;
+        if (m.worldGrid) {
+          m.worldGrid.visible = isRobotMode;
+        }
+        m.controls.update();
+      }
+
+      const URDF_NEUTRAL_LINK_COLOR = 0x6b7280;
+
+      // DG-5F module names come straight from r_server_model_joint_map.yaml, unlike AH's
+      // 2-digit numeric module codes (thumb=01-03, index=10-13, ...). Frame/link ids look
+      // like x_taxel_1_f3_dg5f_ft_09_joint / _link, so the module name is the text between
+      // the "x_taxel_<n>_" prefix and the trailing "_<NN>_joint|link" taxel index suffix.
+      const DG5F_MODULES = [
+        "f3_dg5f_ft", "f4_dg5f_ft", "f2_dg5f_ft", "f5_dg5f_ft",
+        "f3_mid_uSPa22", "f4_mid_uSPa22", "f2_mid_uSPa22", "f5_mid_uSPa22",
+        "f3_prox_uSPa22", "f1_dg5f_ft", "f4_prox_uSPa22", "f2_prox_uSPa22",
+        "f5_prox_uSPa22", "f1_mid_uSPa22", "palm_uSPa46", "f1_prox_uSPa22",
+      ];
+
+      function extractModuleIdFromName(name) {
+        const normalized = normalizeFrameId(name).toLowerCase();
+        if (!normalized) return "";
+        const taxelMatch = normalized.match(/(?:^|_)x_taxel_\d+_(.+)_\d{1,2}_(?:joint|link)$/);
+        if (taxelMatch && taxelMatch[1]) {
+          const found = DG5F_MODULES.find((mod) => mod.toLowerCase() === taxelMatch[1]);
+          if (found) return found;
+        }
+        // Sensor HOUSING links (the STL mesh bodies, e.g. "base_f3_dg5f_ft_link",
+        // "base_palm_uSPa46_link") come straight from x_dg5f_hand.xacro's own
+        // naming (base_<module>_link, no x_taxel_<n>_ prefix, no taxel-index
+        // suffix) -- matched separately so resolveLinkColorForSelection can
+        // also resolve a moduleId for these, not just the taxel dot links,
+        // which is what lets the URDF's per-housing col="red"/"green"/"blue"
+        // (see x_dg5f_hand.xacro) actually show up instead of always falling
+        // back to URDF_NEUTRAL_LINK_COLOR.
+        const housingMatch = normalized.match(/^(?:base_)?(.+)_link$/);
+        if (housingMatch && housingMatch[1]) {
+          const found = DG5F_MODULES.find((mod) => mod.toLowerCase() === housingMatch[1]);
+          if (found) return found;
+        }
+        return "";
+      }
+
+      function fallbackModuleColor(moduleId) {
+        // 5 finger colors + 1 palm color (extends AH's original 4-finger+palm palette by one hue).
+        if (moduleId.startsWith("f1_")) return 0xf59e0b;  // f1 - amber
+        if (moduleId.startsWith("f2_")) return 0x84cc16;  // f2 - lime
+        if (moduleId.startsWith("f3_")) return 0x38bdf8;  // f3 - sky
+        if (moduleId.startsWith("f4_")) return 0xfb7185;  // f4 - rose
+        if (moduleId.startsWith("f5_")) return 0xa78bfa;  // f5 - violet (new hue vs. AH's 4-finger set)
+        if (moduleId.startsWith("palm")) return 0x2dd4bf;  // palm - teal
+        return 0x93c5fd;
+      }
+
+      function collectEnabledModuleIdsFromUi() {
+        const out = new Set();
+        for (const mod of DG5F_MODULES) {
+          if (state.showModules[mod] !== false) {
+            out.add(mod);
+          }
+        }
+        return out;
+      }
+
+      function collectVisibleModuleIdsFromPayload(payload) {
+        const out = new Set();
+        const points = Array.isArray(payload?.urdf?.points) ? payload.urdf.points : [];
+        for (const p of points) {
+          const moduleId = extractModuleIdFromName(p?.frame_id);
+          if (!moduleId) continue;
+          out.add(moduleId);
+        }
+        return out;
+      }
+
+      function computeActiveModuleIds(payload) {
+        const uiEnabledModules = collectEnabledModuleIdsFromUi();
+        if (state.sensorViewMode === "all") {
+          return uiEnabledModules;
+        }
+        const visibleModules = collectVisibleModuleIdsFromPayload(payload);
+        if (visibleModules.size > 0) {
+          return visibleModules;
+        }
+        return uiEnabledModules;
+      }
+
+      function resolveLinkColorForSelection(linkName) {
+        const m = state.urdfMesh;
+        const normalizedLinkName = normalizeFrameId(linkName);
+        const moduleId =
+          m.linkModuleMap.get(normalizedLinkName) ||
+          extractModuleIdFromName(normalizedLinkName);
+        if (!moduleId) {
+          return URDF_NEUTRAL_LINK_COLOR;
+        }
+        if (!m.activeModuleIds.has(moduleId)) {
+          return URDF_NEUTRAL_LINK_COLOR;
+        }
+        const urdfColor = m.linkUrdfColorMap.get(normalizedLinkName);
+        return Number.isInteger(urdfColor) ? urdfColor : fallbackModuleColor(moduleId);
+      }
+
+      function refreshUrdfModuleHighlight(payload) {
+        const m = state.urdfMesh;
+        const activeModules = computeActiveModuleIds(payload);
+        const signature = [...activeModules].sort().join(",");
+        if (signature === m.lastHighlightSignature) {
+          return;
+        }
+        m.activeModuleIds = activeModules;
+        m.lastHighlightSignature = signature;
+        urdfMeshRenderer.refreshLinkMaterials(resolveLinkColorForSelection);
+      }
+
+      function getLinkMaterial(THREE, linkName, colorOverride = null) {
+        const m = state.urdfMesh;
+        const color = Number.isInteger(colorOverride)
+          ? colorOverride
+          : resolveLinkColorForSelection(linkName);
+        const key = String(color);
+        if (!m.materialCache.has(key)) {
+          // Matches AH's getLinkMaterial exactly (2026-08-24). The washout
+          // symptoms blamed on this material/lighting for most of a day
+          // turned out to be several DG-5F .dae files' embedded PointLights
+          // (see the embeddedLights strip in urdf_mesh_renderer.js's
+          // buildRobotFromDescription()) -- once those were actually removed,
+          // AH's original roughness/metalness recipe renders correctly.
+          m.materialCache.set(key, new THREE.MeshStandardMaterial({
+            color,
+            roughness: 0.72,
+            metalness: 0.08,
+          }));
+        }
+        return m.materialCache.get(key);
+      }
+      const urdfMeshRenderer = createUrdfMeshRenderer({
+        state,
+        urdf3dLayer,
+        normalizeFrameId,
+        setHintText,
+        safeErrorText,
+        applyOrbitProfileForMode,
+        getLinkMaterial,
+        extractModuleIdFromName,
+        onOrbitInteraction: onFollowOrbitInteraction,
+      });
+
+      function subscribeRosTopic(topicName, throttleMs = 0, messageType = "") {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+          return;
+        }
+        const req = {
+          op: "subscribe",
+          topic: topicName,
+          queue_length: 1,
+          throttle_rate: Math.max(0, throttleMs),
+        };
+        if (messageType) {
+          req.type = messageType;
+        }
+        state.ws.send(JSON.stringify(req));
+      }
+
+      function ensureSourceSubscriptions() {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN || state.sourceTopicSubscribed) {
+          return;
+        }
+        subscribeRosTopic(topic, 0, "std_msgs/msg/String");
+        // live_module_data is subscribed on the dedicated taxelViewerRosbridgeClient connection
+        // instead (see its creation below) -- not here on the /tf-heavy main connection.
+        for (const src of Object.values(state.urdfSources)) {
+          subscribeRosTopic(src.robotDescriptionTopic, 0, "std_msgs/msg/String");
+          subscribeRosTopic(src.tfTopic, 25, "tf2_msgs/msg/TFMessage");
+          subscribeRosTopic(src.tfStaticTopic, 0, "tf2_msgs/msg/TFMessage");
+          state.sourceByService.set(src.robotDescriptionService, src.name);
+        }
+        state.sourceTopicSubscribed = true;
+      }
+
+      function requestRobotDescriptionViaService(sourceName, force = false) {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+          return;
+        }
+        const src = state.urdfSources[sourceName];
+        if (!src) {
+          return;
+        }
+        if (src.pendingRobotDescriptionService) {
+          return;
+        }
+        if (!force && src.robotDescriptionXml) {
+          return;
+        }
+        const now = performance.now();
+        if (!force && now - src.lastRobotDescriptionServiceReqMs < 1000) {
+          return;
+        }
+        src.pendingRobotDescriptionService = true;
+        src.lastRobotDescriptionServiceReqMs = now;
+        state.sourceByService.set(src.robotDescriptionService, src.name);
+        const serviceCallId = `get_desc_${src.name}_${++state.serviceCallSeq}`;
+        state.sourceByServiceCallId.set(serviceCallId, src.name);
+        state.ws.send(JSON.stringify({
+          id: serviceCallId,
+          op: "call_service",
+          service: src.robotDescriptionService,
+          type: "rcl_interfaces/srv/GetParameters",
+          args: { names: ["robot_description"] },
+        }));
+      }
+
+      function parseUrdfRootLink(xmlText) {
+        return urdfMeshRenderer.parseRootLink(xmlText);
+      }
+
+      async function ensureUrdfMeshRuntime() {
+        return urdfMeshRenderer.ensureRuntime();
+      }
+
+      function resizeUrdfMeshRenderer() {
+        urdfMeshRenderer.resize();
+      }
+
+      function onRobotDescriptionMessage(msg, sourceName) {
+        const src = state.urdfSources[sourceName];
+        if (!src) return;
+        const data = typeof msg?.data === "string" ? msg.data : "";
+        if (!data || data === src.robotDescriptionXml) {
+          return;
+        }
+        src.robotDescriptionXml = data;
+        src.robotRootLink = parseUrdfRootLink(data);
+        src.robotDescriptionVersion += 1;
+        src.frameAliasCache.clear();
+      }
+
+      function onTfMessage(msg, isStatic, sourceName) {
+        const src = state.urdfSources[sourceName];
+        if (!src) return;
+        const transforms = Array.isArray(msg?.transforms) ? msg.transforms : [];
+        if (transforms.length === 0) return;
+        const edgeMap = src.tfEdges;
+        let structureChanged = false;
+        for (const tr of transforms) {
+          const child = normalizeFrameId(tr.child_frame_id);
+          const parent = normalizeFrameId(tr.header?.frame_id);
+          if (!child || !parent) continue;
+          const prev = edgeMap.get(child);
+          if (!prev || prev.parent !== parent) {
+            structureChanged = true;
+          }
+          const t = tr.transform?.translation || {};
+          const q = tr.transform?.rotation || {};
+          edgeMap.set(child, {
+            parent,
+            tx: Number(t.x) || 0,
+            ty: Number(t.y) || 0,
+            tz: Number(t.z) || 0,
+            qx: Number(q.x) || 0,
+            qy: Number(q.y) || 0,
+            qz: Number(q.z) || 0,
+            qw: Number(q.w) || 1,
+            static: !!isStatic,
+          });
+        }
+        if (structureChanged) {
+          src.frameAliasCache.clear();
+        }
+      }
+
+      async function buildUrdfRobotFromDescription() {
+        return urdfMeshRenderer.buildRobotFromDescription();
+      }
+
+      function autoFrameUrdfMeshCamera(force = false) {
+        const m = state.urdfMesh;
+        if (!m.ready || !m.robotBuilt) return;
+        if (!force && m.autoFrameDone) return;
+
+        const THREE = m.THREE;
+        const box = new THREE.Box3();
+        let hasVisible = false;
+        for (const group of m.linkGroups.values()) {
+          if (!group.visible) continue;
+          box.expandByObject(group);
+          hasVisible = true;
+        }
+        if (!hasVisible || box.isEmpty()) return;
+
+        const center = new THREE.Vector3();
+        const size = new THREE.Vector3();
+        box.getCenter(center);
+        box.getSize(size);
+        const radius = Math.max(size.length() * 0.45, 0.02);
+
+        // In RobotModel mode, orbit around base projection on the world floor (z=0).
+        if (state.uiMode === "robot") {
+          const src = getActiveUrdfSource();
+          const preferredBaseLinks = [
+            normalizeFrameId(src?.robotRootLink || ""),
+            "base_link",
+            "base_link_inertia",
+            "base",
+            "base_footprint",
+          ].filter((n, idx, arr) => n && arr.indexOf(n) === idx);
+          let foundBase = false;
+          for (const name of preferredBaseLinks) {
+            const group = m.linkGroups.get(name);
+            if (!group || !group.visible) continue;
+            const basePos = new THREE.Vector3();
+            group.getWorldPosition(basePos);
+            center.set(basePos.x, basePos.y, 0.0);
+            foundBase = true;
+            break;
+          }
+          if (!foundBase) {
+            center.set(0, 0, 0);
+          }
+        }
+
+        m.controls.target.copy(center);
+        // Camera offset dominated by +X (2026-08-24, measured not guessed): live TF
+        // for base_f3_prox_uSPa22_link / base_f3_mid_uSPa22_link / base_palm_uSPa46_link
+        // all report an identical Ry(90 deg) rotation relative to world, which maps each
+        // pad's local +Z (sensing-surface normal, per uSPa22_dg5f.xacro/uSPa46_dg5f.xacro's
+        // own +Z taxel offsets) to world +X. The previous offsets (dominant +X but also
+        // large -Y/+-Z components, then a -Z-dominant guess) both under- or mis-weighted
+        // this -- a camera placed mostly along +X, looking back toward -X, is what
+        // actually faces the sensing surfaces head-on.
+        m.camera.position.set(
+          center.x + radius * 2.4,
+          center.y - radius * 0.5,
+          center.z + radius * 0.6,
+        );
+        m.camera.near = Math.max(radius / 1000.0, 0.0005);
+        m.camera.far = Math.max(radius * 600.0, 20.0);
+        m.camera.updateProjectionMatrix();
+        applyOrbitProfileForMode();
+        m.controls.update();
+        m.autoFrameDone = true;
+      }
+
+      function resolveFrameToFixed(frame, fixedFrame, cache, visiting, allowLooseRoot = false) {
+        const m = state.urdfMesh;
+        const fixed = normalizeFrameId(fixedFrame);
+        const rawFrame = normalizeFrameId(frame);
+        if (!rawFrame) return null;
+        const resolvedFrame = resolveChildFrameAlias(rawFrame) || rawFrame;
+        if (resolvedFrame === fixed || rawFrame === fixed) {
+          return { tx: 0, ty: 0, tz: 0, qx: 0, qy: 0, qz: 0, qw: 1 };
+        }
+        if (cache.has(resolvedFrame)) return cache.get(resolvedFrame);
+        if (visiting.has(resolvedFrame)) return null;
+        visiting.add(resolvedFrame);
+        const edge = m.tfEdges.get(resolvedFrame);
+        if (!edge) {
+          visiting.delete(resolvedFrame);
+          if (allowLooseRoot) {
+            const isKnownGraphFrame = m.tfParentFrames.has(resolvedFrame) || m.tfEdges.has(resolvedFrame);
+            if (!isKnownGraphFrame) {
+              return null;
+            }
+            const root = { tx: 0, ty: 0, tz: 0, qx: 0, qy: 0, qz: 0, qw: 1 };
+            cache.set(resolvedFrame, root);
+            return root;
+          }
+          return null;
+        }
+        const parentTf = resolveFrameToFixed(edge.parent, fixed, cache, visiting, allowLooseRoot);
+        visiting.delete(resolvedFrame);
+        if (!parentTf) return null;
+
+        const THREE = m.THREE;
+        const parentQ = new THREE.Quaternion(parentTf.qx, parentTf.qy, parentTf.qz, parentTf.qw);
+        const localQ = new THREE.Quaternion(edge.qx, edge.qy, edge.qz, edge.qw);
+        const combinedQ = parentQ.clone().multiply(localQ);
+        const localT = new THREE.Vector3(edge.tx, edge.ty, edge.tz).applyQuaternion(parentQ);
+        const combinedT = localT.add(new THREE.Vector3(parentTf.tx, parentTf.ty, parentTf.tz));
+        const out = {
+          tx: combinedT.x,
+          ty: combinedT.y,
+          tz: combinedT.z,
+          qx: combinedQ.x,
+          qy: combinedQ.y,
+          qz: combinedQ.z,
+          qw: combinedQ.w,
+        };
+        cache.set(resolvedFrame, out);
+        return out;
+      }
+
+      function updateRobotLinkTransforms(fixedFrame, allowLooseRootFallback = true) {
+        const m = state.urdfMesh;
+        if (!m.ready || !m.robotBuilt) return { total: 0, visibleCount: 0, missingCount: 0, fallbackVisibleCount: 0 };
+        const parentFrames = new Set();
+        for (const edge of m.tfEdges.values()) {
+          if (edge.parent) parentFrames.add(normalizeFrameId(edge.parent));
+        }
+        m.tfParentFrames = parentFrames;
+        const strictCache = new Map();
+        const strictVisiting = new Set();
+        const looseCache = new Map();
+        const looseVisiting = new Set();
+        let visibleCount = 0;
+        let missingCount = 0;
+        let fallbackVisibleCount = 0;
+        for (const [linkName, group] of m.linkGroups.entries()) {
+          let tf = resolveFrameToFixed(linkName, fixedFrame, strictCache, strictVisiting, false);
+          let usedFallback = false;
+          if (!tf && allowLooseRootFallback) {
+            tf = resolveFrameToFixed(linkName, fixedFrame, looseCache, looseVisiting, true);
+            usedFallback = !!tf;
+          }
+          if (!tf) {
+            group.visible = false;
+            missingCount += 1;
+            continue;
+          }
+          group.visible = true;
+          group.position.set(tf.tx, tf.ty, tf.tz);
+          group.quaternion.set(tf.qx, tf.qy, tf.qz, tf.qw);
+          visibleCount += 1;
+          if (usedFallback) {
+            fallbackVisibleCount += 1;
+          }
+        }
+        const stats = {
+          total: m.linkGroups.size,
+          visibleCount,
+          missingCount,
+          fallbackVisibleCount,
+        };
+        m.lastTfStats = stats;
+        m.tfFallbackActive = fallbackVisibleCount > 0;
+        return stats;
+      }
+
+      function ensureMarkerObject(key) {
+        const m = state.urdfMesh;
+        const THREE = m.THREE;
+        if (m.markerMap.has(key)) {
+          return m.markerMap.get(key);
+        }
+        const group = new THREE.Group();
+        // Segment count bumped 10x10 -> 24x16 (2026-08-24, user feedback: taxel
+        // dots looked "crude" now that the embedded-PointLight bug fix let
+        // proper shading actually show their faceting) -- still cheap at this
+        // radius, 124 taxels total. Radius trimmed 0.0026 -> 0.002 (user
+        // feedback: liked the smoother look but dots read too large).
+        const sphere = new THREE.Mesh(
+          new THREE.SphereGeometry(0.002, 24, 16),
+          new THREE.MeshStandardMaterial({ color: 0x60a5fa, roughness: 0.2, metalness: 0.0 }),
+        );
+        const arrow = new THREE.ArrowHelper(
+          new THREE.Vector3(1, 0, 0),
+          new THREE.Vector3(0, 0, 0),
+          0.006,
+          0xf8fafc,
+          0.0024,
+          0.0016,
+        );
+        group.add(sphere);
+        group.add(arrow);
+        m.markerGroup.add(group);
+        const marker = { group, sphere, arrow };
+        m.markerMap.set(key, marker);
+        return marker;
+      }
+
+      function resolveMarkerPose(frameId, fixedFrame, strictCache, strictVisiting, looseCache, looseVisiting) {
+        const frame = resolveChildFrameAlias(frameId) || normalizeFrameId(frameId);
+        if (!frame) return null;
+        let tf = resolveFrameToFixed(frame, fixedFrame, strictCache, strictVisiting, false);
+        if (tf) return tf;
+        return resolveFrameToFixed(frame, fixedFrame, looseCache, looseVisiting, true);
+      }
+
+      // RobotModel-tab taxel markers were sitting at a fixed spot near the UR7e
+      // base regardless of arm/hand motion (2026-08-24), even after adding the
+      // missing light robot_state_publisher so the housing meshes track
+      // correctly. Root cause: resolveFrameToFixed's "robot" source
+      // (m.tfEdges bound to state.urdfSources.robot.tfEdges while
+      // uiMode==="robot") never has a tf edge for the taxel's own specific
+      // joint frame (e.g. x_taxel_1_f3_dg5f_ft_09_joint) -- only the housing
+      // links resolve there. Its allowLooseRoot fallback then silently treats
+      // any frame it can't find as sitting at identity relative to the fixed
+      // frame, i.e. at the robot's own origin -- exactly the "stuck near
+      // base" symptom. AH's std_xela_taxel_viz_ahv4 (a ROS node, not this web
+      // sidecar) sidesteps this whole class of bug by publishing markers
+      // tagged with their own frame_id and letting RViz's real tf2 transform
+      // them -- there's no JS equivalent to lean on here, so instead: get the
+      // taxel's fixed local offset from its housing link using the XELA
+      // source's tf (which DOES have every taxel edge, confirmed by the
+      // XelaModel tab working), then parent the marker onto the ROBOT
+      // source's housing link group (already correctly tracking the real
+      // arm/hand, confirmed by the housing mesh itself rendering correctly)
+      // instead of re-deriving a world position by walking the robot
+      // source's own (incomplete) tf tree.
+      function resolveTaxelLocalOffsetViaXela(frameId, housingLinkName) {
+        const m = state.urdfMesh;
+        const frame = resolveChildFrameAlias(frameId) || normalizeFrameId(frameId);
+        if (!frame || !housingLinkName) return null;
+        const savedEdges = m.tfEdges;
+        const savedParents = m.tfParentFrames;
+        m.tfEdges = state.urdfSources.xela.tfEdges;
+        // bindActiveUrdfSourceToMesh only rebinds tfEdges per source, not
+        // tfParentFrames -- it's normally recomputed fresh off m.tfEdges by
+        // updateRobotLinkTransforms(). Recompute it here the same way against
+        // the swapped-in xela edges so allowLooseRoot's "known graph frame"
+        // check still matches xela's tree, not whatever the robot source last
+        // left behind.
+        const parentFrames = new Set();
+        for (const edge of m.tfEdges.values()) {
+          if (edge.parent) parentFrames.add(normalizeFrameId(edge.parent));
+        }
+        m.tfParentFrames = parentFrames;
+        try {
+          const cache = new Map();
+          const visiting = new Set();
+          return resolveFrameToFixed(frame, housingLinkName, cache, visiting, false);
+        } finally {
+          m.tfEdges = savedEdges;
+          m.tfParentFrames = savedParents;
+        }
+      }
+
+      // Same fix as the marker-placement one above, generalized for any
+      // caller that needs a taxel frame's pose relative to fixedFrame (2026-
+      // 08-24: FollowCam's computeModuleCenterFromTf hit the identical bug --
+      // it also resolves taxel dot frames directly against whichever source
+      // is active, so in RobotModel mode it always got null/degenerate
+      // results and FollowCam never activated). Tries the normal direct
+      // resolution first (this is the only path taken in XelaModel mode,
+      // where it already works), and only falls back to the
+      // housing-plus-local-offset composition when that fails.
+      function resolveTaxelFixedFramePoseRobust(frameId, fixedFrame, strictCache, strictVisiting) {
+        const m = state.urdfMesh;
+        const frame = resolveChildFrameAlias(frameId) || normalizeFrameId(frameId);
+        if (!frame) return null;
+        const direct = resolveFrameToFixed(frame, fixedFrame, strictCache, strictVisiting, false);
+        if (direct) return direct;
+        if (state.uiMode !== "robot") return null;
+        const moduleId = extractModuleIdFromName(frameId);
+        const housingLinkName = moduleId ? `base_${moduleId}_link` : "";
+        if (!housingLinkName) return null;
+        const housingTf = resolveFrameToFixed(housingLinkName, fixedFrame, strictCache, strictVisiting, false);
+        if (!housingTf) return null;
+        const localOffset = resolveTaxelLocalOffsetViaXela(frameId, housingLinkName);
+        if (!localOffset) return null;
+        const THREE = m.THREE;
+        const housingQ = new THREE.Quaternion(housingTf.qx, housingTf.qy, housingTf.qz, housingTf.qw);
+        const localQ = new THREE.Quaternion(localOffset.qx, localOffset.qy, localOffset.qz, localOffset.qw);
+        const combinedQ = housingQ.clone().multiply(localQ);
+        const localT = new THREE.Vector3(localOffset.tx, localOffset.ty, localOffset.tz).applyQuaternion(housingQ);
+        const combinedT = localT.add(new THREE.Vector3(housingTf.tx, housingTf.ty, housingTf.tz));
+        return {
+          tx: combinedT.x,
+          ty: combinedT.y,
+          tz: combinedT.z,
+          qx: combinedQ.x,
+          qy: combinedQ.y,
+          qz: combinedQ.z,
+          qw: combinedQ.w,
+        };
+      }
+
+      const _arrowHsl = { h: 0, s: 0, l: 0 };
+      function updateUrdfMarkers(payload) {
+        const m = state.urdfMesh;
+        if (!m.ready) return;
+        const points = (payload?.urdf?.points && Array.isArray(payload.urdf.points)) ? payload.urdf.points : [];
+        const liveKeys = new Set();
+        const xyRange = Math.max(1e-6, Number(payload?.meta?.xy_force_range) || 0.8);
+        const zRange = Math.max(1e-6, Number(payload?.meta?.z_force_range) || 14.0);
+        const xyArrowGain = 3.0;
+        const fixedFrame = normalizeFrameId(m.fixedFrame || payload?.fixed_frame || defaultFixedFrame);
+        const strictCache = new Map();
+        const strictVisiting = new Set();
+        const looseCache = new Map();
+        const looseVisiting = new Set();
+
+        for (const p of points) {
+          const key = `${p.module}:${p.sensor_index}`;
+          liveKeys.add(key);
+          const marker = ensureMarkerObject(key);
+          marker.group.visible = true;
+
+          let placedViaHousing = false;
+          if (state.uiMode === "robot") {
+            const moduleId = extractModuleIdFromName(p.frame_id);
+            const housingLinkName = moduleId ? `base_${moduleId}_link` : "";
+            const housingGroup = housingLinkName ? m.linkGroups.get(housingLinkName) : null;
+            if (housingGroup) {
+              if (marker.robotHousingLink !== housingLinkName) {
+                marker.robotLocalOffset = resolveTaxelLocalOffsetViaXela(p.frame_id, housingLinkName);
+                marker.robotHousingLink = housingLinkName;
+              }
+              if (marker.robotLocalOffset) {
+                if (marker.group.parent !== housingGroup) {
+                  housingGroup.add(marker.group);
+                }
+                marker.group.position.set(
+                  marker.robotLocalOffset.tx,
+                  marker.robotLocalOffset.ty,
+                  marker.robotLocalOffset.tz,
+                );
+                marker.group.quaternion.set(
+                  marker.robotLocalOffset.qx,
+                  marker.robotLocalOffset.qy,
+                  marker.robotLocalOffset.qz,
+                  marker.robotLocalOffset.qw,
+                );
+                placedViaHousing = true;
+              }
+            }
+          }
+          if (!placedViaHousing) {
+            if (marker.group.parent !== m.markerGroup) {
+              m.markerGroup.add(marker.group);
+            }
+            const tfPose = resolveMarkerPose(
+              p.frame_id,
+              fixedFrame,
+              strictCache,
+              strictVisiting,
+              looseCache,
+              looseVisiting,
+            );
+            if (tfPose) {
+              marker.group.position.set(tfPose.tx, tfPose.ty, tfPose.tz);
+              marker.group.quaternion.set(tfPose.qx, tfPose.qy, tfPose.qz, tfPose.qw);
+            } else {
+              marker.group.position.set(Number(p.x) || 0, Number(p.y) || 0, Number(p.z) || 0);
+              marker.group.quaternion.set(0, 0, 0, 1);
+            }
+          }
+          // uSPa22 (mid/prox, 2x2) and uSPa46 (palm, 4x6) taxel dots read as
+          // floating/protruding above their housing (2026-08-24 user
+          // feedback) -- fingertip taxels looked fine as-is. Nudge just those
+          // two sensor types slightly along the taxel frame's local Z (its
+          // surface normal) so the sphere sits flush/embedded instead.
+          // Root cause of "no change no matter what value I use"
+          // (2026-08-24, confirmed by instrumenting String.prototype.includes
+          // live): p.module is the hand side ("right"), not the sensor type --
+          // it never matched "uSPa22"/"uSPa46" at all, so the else branch
+          // (z=0) always ran regardless of what the other two branches said.
+          // The sensor-type name only appears in p.frame_id (e.g.
+          // "x_taxel_1_f3_mid_uSPa22_09_joint").
+          // +0.0022 confirmed (2026-08-24) to float uSPa46 further out, not
+          // less -- so +Z is outward, -Z is inward for these frames. Flipped.
+          const frameIdStr = String(p.frame_id || "");
+          if (frameIdStr.includes("uSPa46")) {
+            marker.sphere.position.set(0, 0, -0.0028);
+            marker.sphere.scale.setScalar(1);
+          } else if (frameIdStr.includes("uSPa22")) {
+            // uSPa22's taxel frame reads slightly tilted -- pushing the
+            // sphere inward along local Z alone visibly drifted it off-center
+            // from the housing's own raised dot nub. x/y/z/scale here were
+            // dialed in against live screenshots (2026-08-24, user-confirmed
+            // centered/flush) -- not derived analytically, so re-tune by eye
+            // if uSPa22's mesh/mounting ever changes.
+            marker.sphere.position.set(-0.0001, 0.0003, -0.0014);
+            marker.sphere.scale.setScalar(0.85);
+          } else {
+            marker.sphere.position.set(0, 0, 0);
+            marker.sphere.scale.setScalar(1);
+          }
+
+          const norm = Math.max(0, Math.min(1, Number(p.norm) || 0));
+          const rgb = forceColorRgb(norm);
+          marker.sphere.material.color.setRGB(rgb.r / 255, rgb.g / 255, rgb.b / 255);
+
+          // Sidecar rendering convention: X axis is mirrored vs sensor stream.
+          const fxRaw = -(Number(p.fx) || 0);
+          const fyRaw = Number(p.fy) || 0;
+          const fz = Number(p.fz) || 0;
+          // URDF payload already contains module-wise sign normalization.
+          const dir = new m.THREE.Vector3(
+            (fxRaw / xyRange) * xyArrowGain,
+            (fyRaw / xyRange) * xyArrowGain,
+            fz / zRange,
+          );
+          const mag = dir.length();
+          if (mag < 0.012) {
+            marker.arrow.visible = false;
+            continue;
+          }
+          marker.arrow.visible = true;
+          dir.normalize();
+          const length = clamp(0.004 + mag * 0.012, 0.004, 0.028);
+          marker.arrow.setDirection(dir);
+          // Head sized up from 0.35/0.22 of shaft length (2026-08-24, user
+          // feedback: "make the arrow color read stronger") -- ArrowHelper's
+          // shaft is an unshaded 1px THREE.Line, easy to lose against the
+          // housing at this scale; the head is a solid MeshBasicMaterial cone,
+          // so enlarging it is what actually reads as a bolder marker.
+          marker.arrow.setLength(length, Math.min(0.011, length * 0.6), Math.min(0.007, length * 0.4));
+          // Same intensity heatmap as the sphere (2026-08-24 fix for the
+          // original flat-near-white arrow bug), boosted toward full
+          // saturation/value so the color reads clearly rather than as a
+          // pastel tint -- see forceColorRgb() in js/render/primitives.js.
+          const arrowColor = new m.THREE.Color(rgb.r / 255, rgb.g / 255, rgb.b / 255);
+          arrowColor.getHSL(_arrowHsl);
+          arrowColor.setHSL(_arrowHsl.h, 1.0, Math.min(0.62, Math.max(0.42, _arrowHsl.l)));
+          marker.arrow.setColor(arrowColor);
+        }
+
+        for (const [key, marker] of m.markerMap.entries()) {
+          if (!liveKeys.has(key)) {
+            marker.group.visible = false;
+          }
+        }
+      }
+
+      async function renderUrdfMesh(payload) {
+        const m = state.urdfMesh;
+        if (!m.ready) return false;
+        bindActiveUrdfSourceToMesh(false);
+        resizeUrdfMeshRenderer();
+        if (!m.robotBuilt && m.robotDescriptionXml) {
+          await buildUrdfRobotFromDescription();
+        }
+        if (!m.robotBuilt) return false;
+        refreshUrdfModuleHighlight(payload);
+
+        const fixedFrame = selectFixedFrame(getActiveUrdfSource(), payload?.fixed_frame || m.fixedFrame || defaultFixedFrame);
+        m.fixedFrame = fixedFrame || "world";
+        const allowLooseRootFallback = state.uiMode !== "robot";
+        const tfStats = updateRobotLinkTransforms(m.fixedFrame, allowLooseRootFallback);
+        if (tfStats.total > 0 && tfStats.visibleCount === 0) {
+          const activeSource = getActiveUrdfSource();
+          m.failReason =
+            `No link transforms resolved from ${activeSource.tfTopic} (fixed_frame=${m.fixedFrame}).`;
+          return false;
+        }
+        autoFrameUrdfMeshCamera(false);
+        updateUrdfMarkers(payload);
+        updateFollowCamera(performance.now());
+
+        m.controls.update();
+        m.renderer.render(m.scene, m.camera);
+        return true;
+      }
+
+      function updateSmoothedVectors(payload) {
+        updateSmoothedVectorsCore(state, payload, 0.22, state.uiMode);
+      }
+
+      function drawArrow(x0, y0, dx, dy, lineWidth, color) {
+        drawArrowCanvas(ctx, x0, y0, dx, dy, lineWidth, color);
+      }
+
+      function handleRosbridgeMessage(msg) {
+        if (msg.op === "status" && String(msg.level || "").toLowerCase() === "error") {
+          const statusText = String(msg.msg || "");
+          if (statusText !== state.lastRosbridgeErrorText) {
+            state.lastRosbridgeErrorText = statusText;
+            console.warn("[xela-sidecar] rosbridge error:", statusText);
+          }
+          if (/infer topic type|unknown topic type/i.test(statusText)) {
+            state.sourceTopicSubscribed = false;
+            setTimeout(() => ensureSourceSubscriptions(), 200);
+          }
+          return;
+        }
+
+        if (msg.op === "service_response" && msg.service === "/xela_viz_mode_manager/set_mode") {
+          state.pendingSwitch = false;
+          if (msg.result && msg.values && msg.values.success) {
+            setHintText(`Mode switch accepted: ${msg.values.message || ""}`);
+          } else {
+            const reason = msg.values && msg.values.message ? msg.values.message : "service call failed";
+            setHintText(`Mode switch failed: ${reason}`);
+          }
+          return;
+        }
+
+        const hasServiceCallId = typeof msg.id === "string" && state.sourceByServiceCallId.has(msg.id);
+        const sourceNameFromService = state.sourceByService.get(msg.service);
+        if (msg.op === "service_response" && (hasServiceCallId || sourceNameFromService)) {
+          const sourceName = hasServiceCallId
+            ? state.sourceByServiceCallId.get(msg.id)
+            : sourceNameFromService;
+          if (hasServiceCallId) {
+            state.sourceByServiceCallId.delete(msg.id);
+          }
+          const src = state.urdfSources[sourceName];
+          if (src) {
+            src.pendingRobotDescriptionService = false;
+          }
+          const values = Array.isArray(msg.values?.values) ? msg.values.values : [];
+          if (values.length > 0) {
+            const first = values[0];
+            const xml = typeof first?.string_value === "string" ? first.string_value : "";
+            if (xml) {
+              onRobotDescriptionMessage({ data: xml }, sourceName);
+            }
+          }
+          return;
+        }
+
+        for (const src of Object.values(state.urdfSources)) {
+          if (msg.topic === src.robotDescriptionTopic && msg.msg) {
+            onRobotDescriptionMessage(msg.msg, src.name);
+            return;
+          }
+          if (msg.topic === src.tfTopic && msg.msg) {
+            onTfMessage(msg.msg, false, src.name);
+            return;
+          }
+          if (msg.topic === src.tfStaticTopic && msg.msg) {
+            onTfMessage(msg.msg, true, src.name);
+            return;
+          }
+        }
+
+        if (msg.topic === topic && msg.msg) {
+          const data = msg.msg.data;
+          if (typeof data !== "string") return;
+          try {
+            state.payload = JSON.parse(data);
+            state.lastReceivedMs = performance.now();
+            const prevRequestedMode = state.requestedVizMode;
+            state.requestedVizMode = String(state.payload?.meta?.requested_viz_mode || "grid").toLowerCase();
+            state.sidecarRenderMode = String(state.payload?.meta?.sidecar_render_mode || "grid-2d");
+            state.modelName = String(state.payload?.meta?.model_name || "");
+            if (!state.modeOverriddenByUser) {
+              state.uiMode = state.requestedVizMode === "urdf" ? "xela" : "grid";
+            }
+            if (state.uiMode !== "grid" && state.requestedVizMode === "urdf" && prevRequestedMode !== "urdf") {
+              resetUrdfCamera();
+              requestRobotDescriptionViaService(getUrdfSourceForUiMode(), true);
+            }
+            updateSmoothedVectors(state.payload);
+            updateModeButtons();
+            const baselineReady = state.payload?.meta?.baseline_ready !== false;
+            if (baselineReady) {
+              rebaselineBtn.classList.remove("collecting");
+              baselineStatusEl.classList.remove("collecting");
+              baselineStatusEl.textContent = "Baseline: ready";
+            } else {
+              rebaselineBtn.classList.add("collecting");
+              baselineStatusEl.classList.add("collecting");
+              baselineStatusEl.textContent = "Baseline: collecting...";
+            }
+          } catch (_) {
+          }
+        }
+      }
+      const rosbridgeClient = createRosbridgeClient({
+        state,
+        wsCandidates,
+        topicInfoEl: topicInfo,
+        topicInfoTextFor: (activeWsUrl) =>
+          `${topic} | xela:${xelaTfTopic} robot:${robotTfTopic} via ${activeWsUrl || wsCandidates.join(" | ")}`,
+        setStatus,
+        onOpen: () => {
+          state.sourceTopicSubscribed = false;
+          for (const src of Object.values(state.urdfSources)) {
+            src.pendingRobotDescriptionService = false;
+          }
+          ensureSourceSubscriptions();
+          requestRobotDescriptionViaService("xela", true);
+          requestRobotDescriptionViaService("robot", true);
+          updateModeButtons();
+          updateVectorModeButton();
+        },
+        onCloseOpened: () => {
+          state.pendingSwitch = false;
+          setStatus("Disconnected", false);
+        },
+        onErrorOpened: () => {
+          setStatus("Socket error", false);
+        },
+        onMessageParsed: handleRosbridgeMessage,
+      });
+
+      const DG5F_MODULE_NAMES = [
+        "f1_dg5f_ft", "f2_dg5f_ft", "f3_dg5f_ft", "f4_dg5f_ft", "f5_dg5f_ft",
+        "f1_mid_uSPa22", "f2_mid_uSPa22", "f3_mid_uSPa22", "f4_mid_uSPa22", "f5_mid_uSPa22",
+        "f1_prox_uSPa22", "f2_prox_uSPa22", "f3_prox_uSPa22", "f4_prox_uSPa22", "f5_prox_uSPa22",
+        "palm_uSPa46",
+      ]; // same 16-module list as app_state.js's showModules
+
+      // Dedicated connection for xela_atag_taxel_viewer's own service calls AND its
+      // live_module_data topic -- see runtime_config.js's taxelViewerWsCandidates comment for why
+      // this can't share the main rosbridgeClient connection above. Originally this topic was
+      // subscribed on the main connection like every other topic, but real testing (2026-08-26)
+      // found messages for a just-added module could sit undelivered for 10+ seconds (confirmed
+      // via raw WS frame capture: the node was publishing correctly on every cycle, but this
+      // connection's incoming frames never carried it) -- the main connection's /tf subscriptions
+      // at 25ms throttle (~40Hz) appear to starve rosbridge_websocket_sidecar's single
+      // SingleThreadedExecutor of the cycles needed to also forward this topic promptly, the same
+      // root cause already found and fixed for service-call responses. Moving the SUBSCRIPTION
+      // itself (not just service calls) onto the otherwise-idle dedicated connection sidesteps it.
+      const taxelViewerWsState = { ws: null, connected: false, activeWsUrl: null };
+      const taxelViewerRosbridgeClient = createRosbridgeClient({
+        state: taxelViewerWsState,
+        wsCandidates: taxelViewerWsCandidates,
+        topicInfoEl: null,
+        topicInfoTextFor: () => "",
+        setStatus: () => {},
+        onOpen: () => {
+          taxelViewerWsState.ws.send(JSON.stringify({
+            op: "subscribe",
+            topic: "/xela_atag_taxel_viewer_node/live_module_data",
+            queue_length: 1,
+            throttle_rate: 0,
+            type: "std_msgs/msg/String",
+          }));
+        },
+        onMessageParsed: (msg) => {
+          if (msg.op === "service_response" && typeof msg.service === "string") {
+            taxelSessionPanel?.handleServiceResponse(msg.service, msg.values || {});
+            return;
+          }
+          if (msg.op === "publish" && msg.topic === "/xela_atag_taxel_viewer_node/live_module_data" && msg.msg) {
+            const data = msg.msg.data;
+            if (typeof data === "string" && taxelSessionPanel) {
+              try {
+                taxelSessionPanel.pushLiveModuleData(JSON.parse(data));
+              } catch (_) {
+                // ignore malformed live payloads
+              }
+            }
+          }
+        },
+      });
+      taxelViewerRosbridgeClient.connect();
+
+      const taxelSessionPanelHost = document.getElementById("taxelSessionPanelHost");
+      const taxelSessionPanel = taxelSessionPanelHost
+        ? createTaxelSessionPanel({
+            container: taxelSessionPanelHost,
+            sendServiceRequest: (serviceName, args) => taxelViewerRosbridgeClient.sendServiceRequest(serviceName, args),
+            moduleNames: DG5F_MODULE_NAMES,
+          })
+        : null;
+
+      function connect(candidateIndex = 0) {
+        rosbridgeClient.connect(candidateIndex);
+      }
+
+      window.addEventListener("error", (event) => {
+        const detail = event?.message || "Unknown script error";
+        console.error("[xela-sidecar] window error:", event);
+        setHintText(`Web error: ${detail}`);
+      });
+      window.addEventListener("unhandledrejection", (event) => {
+        const detail = safeErrorText(event?.reason);
+        console.error("[xela-sidecar] unhandled rejection:", event?.reason);
+        setHintText(`Web promise error: ${detail}`);
+      });
+
+      function requestModeSwitch(toUrdf) {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+          setHintText("Cannot switch mode: websocket disconnected.");
+          return;
+        }
+        if (state.pendingSwitch) {
+          setHintText("Mode switch already in progress.");
+          return;
+        }
+        const target = toUrdf ? "urdf" : "grid";
+        state.pendingSwitch = true;
+        state.requestedVizMode = target;
+        updateModeButtons();
+        setHintText(`Switching viz_mode to ${target}...`);
+        state.ws.send(JSON.stringify({
+          op: "call_service",
+          service: "/xela_viz_mode_manager/set_mode",
+          type: "std_srvs/srv/SetBool",
+          args: { data: !!toUrdf },
+        }));
+      }
+
+      function setUiMode(newMode) {
+        if (!["grid", "xela", "robot"].includes(newMode)) {
+          return;
+        }
+        state.modeOverriddenByUser = true;
+        const previous = state.uiMode;
+        state.uiMode = newMode;
+        updateModeButtons();
+        if (previous !== newMode) {
+          resetUrdfCamera();
+        }
+        applyOrbitProfileForMode();
+        if (newMode === "grid") {
+          requestModeSwitch(false);
+          return;
+        }
+        bindActiveUrdfSourceToMesh(true);
+        requestRobotDescriptionViaService(getUrdfSourceForUiMode(), false);
+        requestModeSwitch(true);
+      }
+
+      function toggleGridVectorMode() {
+        if (!vectorBtn) {
+          return;
+        }
+        state.gridVectorMode = state.gridVectorMode === "xyz" ? "xy" : "xyz";
+        updateVectorModeButton();
+        const label = state.gridVectorMode === "xyz" ? "XYZ(resultant)" : "XY";
+        setHintText(`Grid vector mode switched to ${label}.`);
+      }
+
+      function drawEmpty(text) {
+        ctx.fillStyle = "#0b1222";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#93a4bf";
+        ctx.font = `${Math.max(12, Math.floor(canvas.height * 0.03))}px monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+      }
+
+      function drawGrid(payload) {
+        drawGridMode({
+          payload,
+          ctx,
+          canvas,
+          state,
+          forceColor,
+          drawArrow,
+          drawEmpty,
+        });
+      }
+
+      function buildUrdfDisplayPoints(rawPoints, rows, cols, cellSize) {
+        const moduleBuckets = new Map();
+        for (const p of rawPoints) {
+          const moduleName = p.module || "module";
+          if (!moduleBuckets.has(moduleName)) {
+            moduleBuckets.set(moduleName, []);
+          }
+          moduleBuckets.get(moduleName).push(p);
+        }
+
+        const preferred = ["left", "right"];
+        const names = [...moduleBuckets.keys()].sort((a, b) => {
+          const ai = preferred.indexOf(a);
+          const bi = preferred.indexOf(b);
+          if (ai >= 0 && bi >= 0) return ai - bi;
+          if (ai >= 0) return -1;
+          if (bi >= 0) return 1;
+          return a.localeCompare(b);
+        });
+
+        const safeRows = Math.max(1, rows);
+        const safeCols = Math.max(1, cols);
+        const pitch = Math.max(0.006, cellSize);
+        const moduleWidth = safeCols * pitch;
+        const moduleGap = Math.max(0.03, pitch * 2.2);
+
+        const laidOut = [];
+        let cursorX = 0;
+        for (let i = 0; i < names.length; i++) {
+          const name = names[i];
+          if (i > 0) {
+            cursorX += moduleWidth + moduleGap;
+          }
+
+          const pts = moduleBuckets.get(name);
+          for (const p of pts) {
+            const idx = Math.max(0, Number(p.sensor_index) || 0);
+            const row = Math.min(safeRows - 1, Math.floor(idx / safeCols));
+            const col = Math.min(safeCols - 1, idx % safeCols);
+            let lx = (col - (safeCols - 1) * 0.5) * pitch;
+            let ly = ((safeRows - 1) * 0.5 - row) * pitch;
+            if (name === "right") {
+              // Rotate the right module 180 degrees on the flat display plane.
+              lx = -lx;
+              ly = -ly;
+            }
+            laidOut.push({
+              ...p,
+              x: cursorX + lx,
+              y: ly,
+              z: 0.0,
+            });
+          }
+        }
+
+        if (!laidOut.length) {
+          return laidOut;
+        }
+
+        let minX = Number.POSITIVE_INFINITY;
+        let maxX = Number.NEGATIVE_INFINITY;
+        for (const p of laidOut) {
+          minX = Math.min(minX, p.x);
+          maxX = Math.max(maxX, p.x);
+        }
+        const centerX = (minX + maxX) * 0.5;
+        for (const p of laidOut) {
+          p.x -= centerX;
+        }
+
+        return laidOut;
+      }
+
+      function buildUrdfScene(payload) {
+        const rawPoints = (payload.urdf && payload.urdf.points) || [];
+        if (!rawPoints.length) {
+          return null;
+        }
+        const rows = Math.max(1, Number(payload.grid?.rows) || 4);
+        const cols = Math.max(1, Number(payload.grid?.cols) || 6);
+        const cellSize = Math.max(0.006, Number(payload.grid?.cell_size) || 0.015);
+        const points = buildUrdfDisplayPoints(rawPoints, rows, cols, cellSize);
+
+        let cx = 0;
+        let cy = 0;
+        let cz = 0;
+        let minX = Number.POSITIVE_INFINITY;
+        let maxX = Number.NEGATIVE_INFINITY;
+        let minY = Number.POSITIVE_INFINITY;
+        let maxY = Number.NEGATIVE_INFINITY;
+        let minZ = Number.POSITIVE_INFINITY;
+        let maxZ = Number.NEGATIVE_INFINITY;
+
+        const modules = new Map();
+        for (const p of points) {
+          cx += p.x;
+          cy += p.y;
+          cz += p.z;
+          minX = Math.min(minX, p.x);
+          maxX = Math.max(maxX, p.x);
+          minY = Math.min(minY, p.y);
+          maxY = Math.max(maxY, p.y);
+          minZ = Math.min(minZ, p.z);
+          maxZ = Math.max(maxZ, p.z);
+
+          const name = p.module || "module";
+          if (!modules.has(name)) {
+            modules.set(name, new Map());
+          }
+          modules.get(name).set(Number(p.sensor_index), p);
+        }
+
+        const n = Math.max(1, points.length);
+        cx /= n;
+        cy /= n;
+        cz /= n;
+
+        const span = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 0.04);
+        state.lastSceneExtent = span;
+
+        return {
+          points,
+          modules,
+          center: { x: cx, y: cy, z: cz },
+          rows: Math.max(2, Number(payload.grid?.rows) || 4),
+          cols: Math.max(2, Number(payload.grid?.cols) || 6),
+          span,
+        };
+      }
+
+      function projectWorld(point, scene) {
+        const cam = state.camera;
+        const relX = (point.x - scene.center.x) + cam.panX;
+        const relY = (point.y - scene.center.y) + cam.panY;
+        const relZ = (point.z - scene.center.z);
+
+        const cy = Math.cos(cam.yaw);
+        const sy = Math.sin(cam.yaw);
+        const cp = Math.cos(cam.pitch);
+        const sp = Math.sin(cam.pitch);
+
+        const x1 = cy * relX - sy * relY;
+        const y1 = sy * relX + cy * relY;
+        const z1 = relZ;
+
+        const x2 = x1;
+        const y2 = cp * y1 - sp * z1;
+        const z2 = sp * y1 + cp * z1;
+
+        const cameraDist = scene.span * 4.0 + 0.18;
+        const depth = Math.max(0.05, cameraDist - z2);
+        const persp = cameraDist / depth;
+        const base = (Math.min(canvas.width, canvas.height) * 0.43 * cam.zoom) / Math.max(scene.span, 1e-4);
+        const px = canvas.width * 0.5 + x2 * base * persp;
+        const py = canvas.height * 0.5 - y2 * base * persp;
+
+        return { x: px, y: py, z: z2, persp };
+      }
+
+      function drawUrdfFixed3D(payload) {
+        const scene = buildUrdfScene(payload);
+        if (!scene) {
+          drawEmpty("URDF mode requested, but urdf.points is empty");
+          return false;
+        }
+
+        ctx.fillStyle = "#0a1222";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const projectMap = new Map();
+        for (const p of scene.points) {
+          const key = `${p.module}:${p.sensor_index}`;
+          projectMap.set(key, projectWorld(p, scene));
+        }
+
+        const tris = [];
+        for (const [moduleName, moduleMap] of scene.modules.entries()) {
+          for (let r = 0; r < scene.rows - 1; r++) {
+            for (let c = 0; c < scene.cols - 1; c++) {
+              const i00 = r * scene.cols + c;
+              const i01 = r * scene.cols + c + 1;
+              const i10 = (r + 1) * scene.cols + c;
+              const i11 = (r + 1) * scene.cols + c + 1;
+
+              const p00 = moduleMap.get(i00);
+              const p01 = moduleMap.get(i01);
+              const p10 = moduleMap.get(i10);
+              const p11 = moduleMap.get(i11);
+              if (!p00 || !p01 || !p10 || !p11) continue;
+
+              const t1 = [p00, p01, p10];
+              const t2 = [p10, p01, p11];
+              for (const tri of [t1, t2]) {
+                const proj = tri.map((p) => projectMap.get(`${p.module}:${p.sensor_index}`));
+                const depth = (proj[0].z + proj[1].z + proj[2].z) / 3.0;
+                tris.push({ moduleName, proj, depth });
+              }
+            }
+          }
+        }
+
+        tris.sort((a, b) => a.depth - b.depth);
+        for (const tri of tris) {
+          const [a, b, c] = tri.proj;
+          const fill = tri.moduleName === "left" ? "rgba(56,189,248,0.15)" : "rgba(20,184,166,0.15)";
+          ctx.fillStyle = fill;
+          ctx.strokeStyle = "rgba(148,163,184,0.22)";
+          ctx.lineWidth = 1.0;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.lineTo(c.x, c.y);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        const zRange = Math.max(1e-6, Number(payload.meta?.z_force_range) || 14.0);
+        const xyRange = Math.max(1e-6, Number(payload.meta?.xy_force_range) || 0.8);
+        for (const p of scene.points) {
+          const key = `${p.module}:${p.sensor_index}`;
+          const proj = projectMap.get(key);
+          if (!proj) continue;
+
+          const radius = clamp(3.0 * proj.persp, 2.2, 7.6);
+          ctx.beginPath();
+          ctx.fillStyle = forceColor(Number(p.norm) || 0);
+          ctx.strokeStyle = "rgba(6,10,18,0.95)";
+          ctx.lineWidth = 1.0;
+          ctx.arc(proj.x, proj.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          const v = state.vectorEma.get(key) || { fx: Number(p.fx) || 0, fy: Number(p.fy) || 0 };
+          const mag = Math.hypot(v.fx, v.fy);
+          const nxy = mag / xyRange;
+          if (nxy < 0.08) continue;
+
+          const fxDisplay = -v.fx;
+          const fyDisplay = (p.module === "left") ? -v.fy : v.fy;
+          const q = {
+            x: Number(p.x) + (fxDisplay / xyRange) * scene.span * 0.24,
+            y: Number(p.y) + (fyDisplay / xyRange) * scene.span * 0.24,
+            z: Number(p.z) + (Number(p.fz || 0) / zRange) * scene.span * 0.14,
+          };
+          const qProj = projectWorld(q, scene);
+          drawArrow(
+            proj.x,
+            proj.y,
+            qProj.x - proj.x,
+            qProj.y - proj.y,
+            clamp(1.0 * proj.persp, 1.0, 2.2),
+            "rgba(241,245,249,0.88)",
+          );
+        }
+
+        return true;
+      }
+
+      function render() {
+        resizeCanvas();
+        const wantsUrdfView = state.uiMode !== "grid";
+        const activeSource = getActiveUrdfSource();
+
+        if (!state.payload) {
+          if (wantsUrdfView) {
+            bindActiveUrdfSourceToMesh(false);
+            if (!state.urdfMesh.ready && !state.urdfMesh.loading && !state.urdfMesh.failed) {
+              ensureUrdfMeshRuntime().catch(() => { });
+            }
+            if (state.urdfMesh.ready) {
+              const dummyPayload = {
+                fixed_frame: state.urdfMesh.fixedFrame || defaultFixedFrame,
+                urdf: { points: [] },
+                meta: { xy_force_range: 0.8, z_force_range: 14.0 },
+              };
+              runUrdfRenderGuarded(dummyPayload, (okRender) => {
+                if (okRender) {
+                  setUrdf3DVisible(true);
+                  setHintText("URDF mesh is ready. Waiting for /x_taxel_dg5f/web_state sensor payload.");
+                  setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"} | waiting payload`);
+                } else {
+                  setUrdf3DVisible(false);
+                  drawEmpty("URDF mesh mode waiting for robot_description/tf");
+                  if (state.urdfMesh.failReason) {
+                    setHintText(`URDF mesh pending: ${state.urdfMesh.failReason}`);
+                    setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"} pending (tf)`);
+                  } else {
+                    setHintText(`Waiting for ${activeSource.robotDescriptionTopic} and ${activeSource.tfTopic}.`);
+                    setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"} pending`);
+                  }
+                }
+              });
+            } else {
+              setUrdf3DVisible(false);
+              drawEmpty("Initializing URDF mesh renderer...");
+              if (state.urdfMesh.failed) {
+                setHintText(`URDF mesh init failed: ${state.urdfMesh.failReason || "unknown"}`);
+                setModeInfoText("Sidecar: URDF mesh failed");
+              } else {
+                setHintText("Initializing URDF mesh renderer...");
+                setModeInfoText("Sidecar: URDF init");
+              }
+            }
+          } else {
+            bumpUrdfRenderEpoch();
+            setUrdf3DVisible(false);
+            drawEmpty("Waiting for /x_taxel_dg5f/web_state ...");
+            setHintText("No payload received yet. Check bridge launch and rosbridge connection.");
+            setModeInfoText("Sidecar: GridMode");
+          }
+          updateModeButtons();
+        } else {
+          const modelLabel = state.modelName ? ` model=${state.modelName}` : "";
+          if (wantsUrdfView) {
+            bindActiveUrdfSourceToMesh(false);
+            if (!state.urdfMesh.robotDescriptionXml) {
+              requestRobotDescriptionViaService(activeSource.name, false);
+            }
+            if (state.urdfMesh.ready) {
+              runUrdfRenderGuarded(state.payload, (okRender) => {
+                if (!okRender) {
+                  setUrdf3DVisible(false);
+                  drawEmpty("URDF mesh mode waiting for robot_description/tf");
+                  if (state.urdfMesh.failReason) {
+                    setHintText(`URDF mesh pending: ${state.urdfMesh.failReason}`);
+                    setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"} pending (tf)${modelLabel}`);
+                  } else {
+                    setHintText(`URDF mesh pending: waiting for ${activeSource.robotDescriptionTopic} and ${activeSource.tfTopic}.`);
+                    setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"} pending${modelLabel}`);
+                  }
+                  return;
+                }
+                setUrdf3DVisible(true);
+                if (state.urdfMesh.tfFallbackActive) {
+                  setHintText("URDF Mesh 3D (local TF root fallback): fixed_frame chain not fully available.");
+                } else {
+                  setHintText(`URDF Mesh 3D: ${activeSource.robotDescriptionTopic} + ${activeSource.tfTopic}`);
+                }
+                setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"}${modelLabel}`);
+              });
+            } else {
+              if (!state.urdfMesh.loading && !state.urdfMesh.failed) {
+                ensureUrdfMeshRuntime().catch(() => { });
+              }
+              setUrdf3DVisible(false);
+              drawEmpty("Initializing URDF mesh renderer...");
+              if (state.urdfMesh.failed) {
+                const reason = state.urdfMesh.failReason || "unknown";
+                setHintText(`URDF mesh init failed: ${reason}`);
+                setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"} failed${modelLabel}`);
+              } else {
+                setHintText("Initializing URDF mesh renderer...");
+                setModeInfoText(`Sidecar: ${state.uiMode === "robot" ? "RobotModel" : "XelaModel"} init${modelLabel}`);
+              }
+            }
+          } else {
+            bumpUrdfRenderEpoch();
+            setUrdf3DVisible(false);
+            drawGrid(state.payload);
+            setHintText("Grid 2D mode.");
+            setModeInfoText(`Sidecar: GridMode${modelLabel}`);
+          }
+        }
+
+        const nowMs = performance.now();
+        const timelineNowMs = getTimelineNowMs(nowMs);
+        if ((nowMs - state.lastStatsPaintMs) >= 120) {
+          const ageMsRaw = state.lastReceivedMs > 0 ? (nowMs - state.lastReceivedMs) : NaN;
+          const ageMs = Number.isFinite(ageMsRaw) ? Math.round(ageMsRaw / 50) * 50 : NaN;
+          const gridCount = state.payload?.grid?.points?.length || 0;
+          const urdfCount = state.payload?.urdf?.points?.length || 0;
+          const modeCount = wantsUrdfView ? `urdf=${urdfCount}` : `grid=${gridCount}`;
+          const telemetry = computeAnalysisTelemetry(state.payload);
+          sampleTimeline(telemetry, timelineNowMs);
+          ingestAnalysisEvents(state.payload, telemetry, timelineNowMs);
+          drawSparkline(timelineNowMs);
+
+          const currentLine =
+            `${Number.isFinite(telemetry?.tipF1Norm) ? ` tipF1=${telemetry.tipF1Norm.toFixed(3)}` : ""}` +
+            `${Number.isFinite(telemetry?.tipF2Norm) ? ` tipF2=${telemetry.tipF2Norm.toFixed(3)}` : ""}` +
+            `${Number.isFinite(telemetry?.activeCount) ? ` active=${Math.round(telemetry.activeCount)}` : ""}`;
+          if (currentLine !== lastStatsCurrentText) {
+            const trimmedCurrent = currentLine.trim();
+            statsCurrent.textContent = trimmedCurrent;
+            statsCurrent.title = trimmedCurrent;
+            lastStatsCurrentText = currentLine;
+          }
+          const nextStats = Number.isFinite(ageMs)
+            ? `age=${ageMs.toFixed(0)}ms ${modeCount} ui=${state.uiMode} src=${activeSource.name}` +
+              `${Number.isFinite(telemetry?.pointCount) ? ` pts=${Math.round(telemetry.pointCount)}` : ""}` +
+              `${Number.isFinite(telemetry?.normMean) ? ` norm_mean=${telemetry.normMean.toFixed(3)}` : ""}` +
+              `${Number.isFinite(telemetry?.activeCount) ? ` active=${Math.round(telemetry.activeCount)}` : ""}`
+            : `${modeCount} ui=${state.uiMode} src=${activeSource.name}` +
+              `${Number.isFinite(telemetry?.pointCount) ? ` pts=${Math.round(telemetry.pointCount)}` : ""}` +
+              `${Number.isFinite(telemetry?.normMean) ? ` norm_mean=${telemetry.normMean.toFixed(3)}` : ""}` +
+              `${Number.isFinite(telemetry?.activeCount) ? ` active=${Math.round(telemetry.activeCount)}` : ""}`;
+          const analysisSummary =
+            `${Number.isFinite(telemetry?.normMean) ? `norm_mean=${telemetry.normMean.toFixed(3)}` : "norm_mean=-"}` +
+            `${Number.isFinite(telemetry?.fzSum) ? ` fz_sum=${telemetry.fzSum.toFixed(3)}` : " fz_sum=-"}` +
+            `${Number.isFinite(telemetry?.tipF1Norm) ? ` tipF1=${telemetry.tipF1Norm.toFixed(3)}` : " tipF1=-"}` +
+            `${Number.isFinite(telemetry?.tipF2Norm) ? ` tipF2=${telemetry.tipF2Norm.toFixed(3)}` : " tipF2=-"}` +
+            `${Number.isFinite(telemetry?.activeCount) ? ` active=${Math.round(telemetry.activeCount)}` : ""}`;
+          if (nextStats !== state.lastStatsText) {
+            statsText.textContent = analysisSummary;
+            statsText.title = analysisSummary;
+            briefStats.textContent = nextStats;
+            briefStats.title = nextStats;
+            state.lastStatsText = nextStats;
+          }
+          state.lastStatsPaintMs = nowMs;
+        }
+
+        requestAnimationFrame(render);
+      }
+
+      function resetUrdfCamera() {
+        state.camera.yaw = 0.0;
+        state.camera.pitch = 0.0;
+        state.camera.zoom = 1.35;
+        state.camera.panX = 0.0;
+        state.camera.panY = 0.0;
+      }
+
+      // ── Simulate toolbar ──────────────────────────────────────────────
+      // simSvcPrefix is built from simServerNode so that calling
+      // simSvcPrefix + "/scenario_random" resolves to the absolute ROS
+      // service path, e.g. "/xela_atag_mock_server/scenario_random".
+      // Using a node-specific prefix means this UI never conflicts with
+      // xela_taxel_sidecar_2f, which calls "/sim_xela_server/scenario_*".
+      const simSvcPrefix = simServerNode
+        ? "/" + simServerNode.replace(/^\/+/, "")
+        : "";
+
+      if (simSvcPrefix) {
+        simBtn.style.display = "";
+      }
+
+      const simScenarioBtns = [
+        simRandomBtn, simSilentBtn, simStepBtn, simRampBtn,
+        simContactLossBtn, simPinchBtn, simTripodBtn, simPalmBtn,
+      ];
+      let simRowVisible = false;
+
+      function setSimActive(btnEl, label) {
+        simScenarioBtns.forEach((b) => b.classList.remove("active"));
+        btnEl.classList.add("active");
+        simStateBadge.textContent = `state: ${label}`;
+      }
+
+      function callSimService(serviceSuffix, btnEl, label) {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+          simStateBadge.textContent = "not connected";
+          return;
+        }
+        state.ws.send(JSON.stringify({
+          op: "call_service",
+          service: simSvcPrefix + serviceSuffix,
+          type: "std_srvs/srv/Trigger",
+          args: {},
+        }));
+        setSimActive(btnEl, label);
+      }
+
+      simBtn.addEventListener("click", () => {
+        simRowVisible = !simRowVisible;
+        simulateRow.style.display = simRowVisible ? "" : "none";
+        simBtn.classList.toggle("active", simRowVisible);
+      });
+
+      simRandomBtn.addEventListener("click", () =>
+        callSimService("/scenario_random", simRandomBtn, "RANDOM"));
+      simSilentBtn.addEventListener("click", () =>
+        callSimService("/scenario_silent", simSilentBtn, "SILENT"));
+      simStepBtn.addEventListener("click", () =>
+        callSimService("/scenario_step", simStepBtn, "STEP"));
+      simRampBtn.addEventListener("click", () =>
+        callSimService("/scenario_ramp", simRampBtn, "RAMP"));
+      simContactLossBtn.addEventListener("click", () =>
+        callSimService("/scenario_contact_loss", simContactLossBtn, "C.LOSS"));
+      simPinchBtn.addEventListener("click", () =>
+        callSimService("/scenario_pinch", simPinchBtn, "PINCH"));
+      simTripodBtn.addEventListener("click", () =>
+        callSimService("/scenario_tripod", simTripodBtn, "TRIPOD"));
+      simPalmBtn.addEventListener("click", () =>
+        callSimService("/scenario_palm_press", simPalmBtn, "PALM"));
+      // ── End simulate toolbar ──────────────────────────────────────────
+
+      reconnectBtn.addEventListener("click", () => {
+        connect();
+      });
+      gridBtn.addEventListener("click", () => setUiMode("grid"));
+      xelaBtn.addEventListener("click", () => setUiMode("xela"));
+      robotBtn.addEventListener("click", () => setUiMode("robot"));
+      vectorBtn?.addEventListener("click", () => toggleGridVectorMode());
+      followBtn?.addEventListener("click", () => {
+        if (state.uiMode !== "robot") {
+          return;
+        }
+        setFollowCamEnabled(!followCamState.enabled);
+      });
+      analysisBtn?.addEventListener("click", () => setAnalysisVisible(!analysisState.visible));
+
+      const sensorViewAllBtn = document.getElementById("sensorViewAllBtn");
+      const sensorViewActiveBtn = document.getElementById("sensorViewActiveBtn");
+      function setSensorViewMode(mode) {
+        state.sensorViewMode = mode;
+        sensorViewAllBtn?.classList.toggle("active", mode === "all");
+        sensorViewActiveBtn?.classList.toggle("active", mode === "active");
+        state.urdfMesh.lastHighlightSignature = "";
+        refreshUrdfModuleHighlight(state.payload);
+        const showAll = mode === "all";
+        rosbridgeClient.sendServiceRequest(
+          `${runtimeConfig.bridgeNodeName}/set_parameters`,
+          { parameters: [{ name: "show_all_modules", value: { type: 1, bool_value: showAll } }] }
+        );
+      }
+      sensorViewAllBtn?.addEventListener("click", () => setSensorViewMode("all"));
+      sensorViewActiveBtn?.addEventListener("click", () => setSensorViewMode("active"));
+
+      rebaselineBtn?.addEventListener("click", () => {
+        if (!state.connected) return;
+        // Sent over the dedicated taxel-viewer rosbridge connection, not the main one -- the
+        // main connection's heavy /tf etc. subscriptions starve service-call responses on
+        // rosbridge_server's single executor (see runtime_config.js's taxelViewerWsCandidates
+        // comment; confirmed 2026-08-26 this button never got a response over the main
+        // connection either, same root cause as xela_atag_taxel_viewer's services).
+        taxelViewerRosbridgeClient.sendServiceRequest("/reset_baseline", {});
+        // Also re-trigger xela_atag_taxel_viewer_node's OWN baseline -- as of 2026-08-27 that
+        // node is the system-wide CANONICAL baseline source (see its module docstring): it
+        // broadcasts on a latched topic that xela_taxel_web_bridge_cpp (the /reset_baseline
+        // call above) now subscribes to and applies automatically. Calling both here means one
+        // click re-syncs the whole system (3D view + Session panel) instead of just this node's
+        // own local copy -- the /reset_baseline call above is kept only as a fallback for when
+        // xela_atag_taxel_viewer_node isn't running.
+        taxelViewerRosbridgeClient.sendServiceRequest("/xela_atag_taxel_viewer_node/rebaseline", {});
+        // Analysis tab's Session panel keeps its own rolling buffer for heatmap/chart auto-scale;
+        // this is the single system-wide rebaseline trigger now (2026-08-27), so clear that
+        // buffer here too instead of requiring a separate click on its own "Clear View" button.
+        taxelSessionPanel?.clearLocalBuffer();
+        rebaselineBtn.classList.add("collecting");
+        baselineStatusEl.classList.add("collecting");
+        baselineStatusEl.textContent = "Baseline: collecting...";
+      });
+      win10Btn?.addEventListener("click", () => setTimelineWindowMs(10000));
+      win30Btn?.addEventListener("click", () => setTimelineWindowMs(30000));
+      win60Btn?.addEventListener("click", () => setTimelineWindowMs(60000));
+      pauseBtn?.addEventListener("click", () => setTimelinePaused(!timelineState.paused, performance.now()));
+      sparkline?.addEventListener("mousemove", (ev) => {
+        const rect = sparkline.getBoundingClientRect();
+        hoverState.inside = true;
+        hoverState.x = ev.clientX - rect.left;
+        hoverState.y = ev.clientY - rect.top;
+        updateEventTooltip(getTimelineNowMs(performance.now()));
+      });
+      sparkline?.addEventListener("mouseleave", () => {
+        hoverState.inside = false;
+        setEventTooltipVisible(false);
+      });
+
+      const moduleInputs = [
+        { id: "chkF1", param: "show_f1", group: "f1" },
+        { id: "chkF1Ft", param: "show_module_f1_dg5f_ft", group: "f1_dg5f_ft" },
+        { id: "chkF1Mid", param: "show_module_f1_mid_uSPa22", group: "f1_mid_uSPa22" },
+        { id: "chkF1Prox", param: "show_module_f1_prox_uSPa22", group: "f1_prox_uSPa22" },
+
+        { id: "chkF2", param: "show_f2", group: "f2" },
+        { id: "chkF2Ft", param: "show_module_f2_dg5f_ft", group: "f2_dg5f_ft" },
+        { id: "chkF2Mid", param: "show_module_f2_mid_uSPa22", group: "f2_mid_uSPa22" },
+        { id: "chkF2Prox", param: "show_module_f2_prox_uSPa22", group: "f2_prox_uSPa22" },
+
+        { id: "chkF3", param: "show_f3", group: "f3" },
+        { id: "chkF3Ft", param: "show_module_f3_dg5f_ft", group: "f3_dg5f_ft" },
+        { id: "chkF3Mid", param: "show_module_f3_mid_uSPa22", group: "f3_mid_uSPa22" },
+        { id: "chkF3Prox", param: "show_module_f3_prox_uSPa22", group: "f3_prox_uSPa22" },
+
+        { id: "chkF4", param: "show_f4", group: "f4" },
+        { id: "chkF4Ft", param: "show_module_f4_dg5f_ft", group: "f4_dg5f_ft" },
+        { id: "chkF4Mid", param: "show_module_f4_mid_uSPa22", group: "f4_mid_uSPa22" },
+        { id: "chkF4Prox", param: "show_module_f4_prox_uSPa22", group: "f4_prox_uSPa22" },
+
+        { id: "chkF5", param: "show_f5", group: "f5" },
+        { id: "chkF5Ft", param: "show_module_f5_dg5f_ft", group: "f5_dg5f_ft" },
+        { id: "chkF5Mid", param: "show_module_f5_mid_uSPa22", group: "f5_mid_uSPa22" },
+        { id: "chkF5Prox", param: "show_module_f5_prox_uSPa22", group: "f5_prox_uSPa22" },
+
+        { id: "chkPalm", param: "show_palm", group: "palm" },
+        { id: "chkPalmUSPa46", param: "show_module_palm_uSPa46", group: "palm_uSPa46" }
+      ];
+
+      moduleInputs.forEach(mod => {
+        const el = document.getElementById(mod.id);
+        if (el) {
+          el.addEventListener("change", (e) => {
+            const isChecked = e.target.checked;
+            state.showModules[mod.group] = isChecked;
+            refreshUrdfModuleHighlight(state.payload);
+            const paramArg = {
+              parameters: [
+                {
+                  name: mod.param,
+                  value: { type: 1, bool_value: isChecked }
+                }
+              ]
+            };
+            const uriViz = `${runtimeConfig.vizNodeName}/set_parameters`;
+            const uriBridge = `${runtimeConfig.bridgeNodeName}/set_parameters`;
+            console.log("XELA TOGGLE CALL:", uriViz, paramArg);
+            rosbridgeClient.sendServiceRequest(uriViz, paramArg);
+            rosbridgeClient.sendServiceRequest(uriBridge, paramArg);
+          });
+        }
+      });
+
+      const groupToChildren = {
+        "chkF1": ["chkF1Ft", "chkF1Mid", "chkF1Prox"],
+        "chkF2": ["chkF2Ft", "chkF2Mid", "chkF2Prox"],
+        "chkF3": ["chkF3Ft", "chkF3Mid", "chkF3Prox"],
+        "chkF4": ["chkF4Ft", "chkF4Mid", "chkF4Prox"],
+        "chkF5": ["chkF5Ft", "chkF5Mid", "chkF5Prox"],
+        "chkPalm": ["chkPalmUSPa46"]
+      };
+
+      for (const [groupId, childIds] of Object.entries(groupToChildren)) {
+        const groupEl = document.getElementById(groupId);
+        if (groupEl) {
+          groupEl.addEventListener("change", (e) => {
+            const isChecked = e.target.checked;
+            for (const childId of childIds) {
+              const childEl = document.getElementById(childId);
+              if (childEl) {
+                childEl.disabled = !isChecked;
+              }
+            }
+          });
+        }
+      }
+
+      canvas.addEventListener("contextmenu", (ev) => ev.preventDefault());
+      canvas.addEventListener("pointerdown", (ev) => {
+        if (state.uiMode === "grid") return;
+        state.drag = {
+          id: ev.pointerId,
+          x: ev.clientX,
+          y: ev.clientY,
+          yaw: state.camera.yaw,
+          pitch: state.camera.pitch,
+          panX: state.camera.panX,
+          panY: state.camera.panY,
+          panMode: ev.shiftKey || ev.button === 2,
+        };
+        canvas.setPointerCapture(ev.pointerId);
+      });
+      canvas.addEventListener("pointermove", (ev) => {
+        if (!state.drag || state.drag.id !== ev.pointerId || state.uiMode === "grid") return;
+        const dx = ev.clientX - state.drag.x;
+        const dy = ev.clientY - state.drag.y;
+        if (state.drag.panMode) {
+          const k = (state.lastSceneExtent * 0.0022) / Math.max(0.25, state.camera.zoom);
+          state.camera.panX = state.drag.panX + dx * k;
+          state.camera.panY = state.drag.panY - dy * k;
+          return;
+        }
+        state.camera.yaw = state.drag.yaw + dx * 0.008;
+        state.camera.pitch = clamp(state.drag.pitch + dy * 0.006, -1.45, 1.45);
+      });
+      canvas.addEventListener("pointerup", (ev) => {
+        if (state.drag && state.drag.id === ev.pointerId) {
+          state.drag = null;
+          canvas.releasePointerCapture(ev.pointerId);
+        }
+      });
+      canvas.addEventListener("pointercancel", () => {
+        state.drag = null;
+      });
+      canvas.addEventListener("wheel", (ev) => {
+        if (state.uiMode === "grid") return;
+        ev.preventDefault();
+        const k = Math.exp(-ev.deltaY * 0.0012);
+        state.camera.zoom = clamp(state.camera.zoom * k, 0.4, 3.6);
+      }, { passive: false });
+      canvas.addEventListener("dblclick", () => {
+        if (state.uiMode === "grid") return;
+        resetUrdfCamera();
+      });
+
+      window.addEventListener("resize", resizeCanvas);
+      window.addEventListener("resize", resizeUrdfMeshRenderer);
+      updateVectorModeButton();
+      connect();
+      render();
+
+      setStatus("Connecting...", false);
+      statusLine.title =
+        `topic=${topic} xela_desc=${xelaRobotDescriptionTopic} xela_tf=${xelaTfTopic} ` +
+        `robot_desc=${robotRobotDescriptionTopic} robot_tf=${robotTfTopic} ws_candidates=${wsCandidates.join(",")}`;
+    })();
+  </script>
+</body>
+
+</html>

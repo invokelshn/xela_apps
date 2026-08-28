@@ -1,0 +1,212 @@
+/**:
+  ros__parameters:
+    grid_config_yaml: ""  # filled in by launch file at runtime to point back at this file
+    canvas_rows: 16
+    canvas_cols: 30
+
+# layout_templates define, per taxel dot number (the trailing _NN in its joint
+# name, e.g. "09" in x_taxel_1_f3_dg5f_ft_09_joint), a fixed (row, col) cell
+# within the template's own rows x cols block. The node resolves each
+# incoming taxel's cell by parsing its own dot number, NOT by its position in
+# the message's taxels[]/frame_ids[] array -- so this stays correct even if
+# xela_server2_dg5f/config/r_server_model_joint_map.yaml's flat-index order
+# ever changes, as long as the "_NN_joint" naming convention itself doesn't.
+#
+# dg5f_fingertip_trapezoid was derived from a real photo/diagram of the
+# dg5f_fingertip housing (user-provided, 2026-08-23): the 12 taxels form a
+# dome-shaped trapezoid (2 taxels near the fingertip, 4 in the middle, 6 near
+# the base), not a plain rectangle -- confirmed to be identical across all
+# five fingers (f1..f5), verified against r_server_model_joint_map.yaml.
+layout_templates:
+  dg5f_fingertip_trapezoid:
+    rows: 3
+    cols: 6
+    dot_positions:
+      "09": [0, 2]
+      "08": [0, 3]
+      "11": [1, 1]
+      "06": [1, 2]
+      "07": [1, 3]
+      "03": [1, 4]
+      "12": [2, 0]
+      "10": [2, 1]
+      "05": [2, 2]
+      "04": [2, 3]
+      "02": [2, 4]
+      "01": [2, 5]
+
+  # uSPa22 (mid/prox phalanx patch, 4 taxels), from user-provided diagram
+  # (2026-08-23): row0 (top, away from the finger's own base) holds 3,4;
+  # row1 (bottom) holds 1,2. Shared by all 10 f1..f5 mid/prox modules --
+  # same sensor part, same physical taxel numbering.
+  dg5f_uspa22_square:
+    rows: 2
+    cols: 2
+    dot_positions:
+      "03": [0, 0]
+      "04": [0, 1]
+      "01": [1, 0]
+      "02": [1, 1]
+
+  # uSPa46 (palm patch, 24 taxels), from user-provided diagram (2026-08-23):
+  # bottom row (row3) = 1-6 left-to-right, then each row up adds +6, top row
+  # (row0) = 19-24.
+  dg5f_uspa46_palm:
+    rows: 4
+    cols: 6
+    dot_positions:
+      "19": [0, 0]
+      "20": [0, 1]
+      "21": [0, 2]
+      "22": [0, 3]
+      "23": [0, 4]
+      "24": [0, 5]
+      "13": [1, 0]
+      "14": [1, 1]
+      "15": [1, 2]
+      "16": [1, 3]
+      "17": [1, 4]
+      "18": [1, 5]
+      "07": [2, 0]
+      "08": [2, 1]
+      "09": [2, 2]
+      "10": [2, 3]
+      "11": [2, 4]
+      "12": [2, 5]
+      "01": [3, 0]
+      "02": [3, 1]
+      "03": [3, 2]
+      "04": [3, 3]
+      "05": [3, 4]
+      "06": [3, 5]
+
+# Per-module rectangular block layout on the shared canvas above.
+# NOT read as a ROS parameter (heterogeneous list-of-dicts) -- the node loads this
+# 'modules' key directly via yaml-cpp from grid_config_yaml (see launch file).
+#
+# Row (vertical) placement mirrors XELA's own reference visualizer for this
+# hand (user-provided screenshot, 2026-08-23): fingers are staggered by
+# real anatomical length instead of all starting at row 0 --
+#   f3 (middle, longest) starts highest (offset_row 0)
+#   f2, f4 (index/ring) start one tier lower (offset_row 1)
+#   f5 (pinky) starts two tiers lower (offset_row 2)
+#   f1 (thumb) is pushed down separately so its prox block's bottom row
+#     lines up with the palm block's bottom row (per user request), not
+#     staggered with f2/f3/f4/f5 -- reflecting the thumb's real attachment
+#     near the palm rather than in line with the other four fingers.
+# mid (2x2) and prox (2x2) blocks stay stacked directly under their own
+# finger's fingertip block, following that finger's own row offset (with a
+# 1-row gap between fingertip/mid/prox, same spacing as before).
+modules:
+  - name: f1_dg5f_ft
+    taxel_count: 12
+    layout: dg5f_fingertip_trapezoid
+    grid_rows: 3
+    grid_cols: 6
+    offset_row: 7
+    offset_col: 24
+  - name: f2_dg5f_ft
+    taxel_count: 12
+    layout: dg5f_fingertip_trapezoid
+    grid_rows: 3
+    grid_cols: 6
+    offset_row: 1
+    offset_col: 18
+  - name: f3_dg5f_ft
+    taxel_count: 12
+    layout: dg5f_fingertip_trapezoid
+    grid_rows: 3
+    grid_cols: 6
+    offset_row: 0
+    offset_col: 12
+  - name: f4_dg5f_ft
+    taxel_count: 12
+    layout: dg5f_fingertip_trapezoid
+    grid_rows: 3
+    grid_cols: 6
+    offset_row: 1
+    offset_col: 6
+  - name: f5_dg5f_ft
+    taxel_count: 12
+    layout: dg5f_fingertip_trapezoid
+    grid_rows: 3
+    grid_cols: 6
+    offset_row: 2
+    offset_col: 0
+  - name: f1_mid_uSPa22
+    taxel_count: 4
+    layout: dg5f_uspa22_square
+    grid_rows: 2
+    grid_cols: 2
+    offset_row: 11
+    offset_col: 26
+  - name: f2_mid_uSPa22
+    taxel_count: 4
+    layout: dg5f_uspa22_square
+    grid_rows: 2
+    grid_cols: 2
+    offset_row: 5
+    offset_col: 20
+  - name: f3_mid_uSPa22
+    taxel_count: 4
+    layout: dg5f_uspa22_square
+    grid_rows: 2
+    grid_cols: 2
+    offset_row: 4
+    offset_col: 14
+  - name: f4_mid_uSPa22
+    taxel_count: 4
+    layout: dg5f_uspa22_square
+    grid_rows: 2
+    grid_cols: 2
+    offset_row: 5
+    offset_col: 8
+  - name: f5_mid_uSPa22
+    taxel_count: 4
+    layout: dg5f_uspa22_square
+    grid_rows: 2
+    grid_cols: 2
+    offset_row: 6
+    offset_col: 2
+  - name: f1_prox_uSPa22
+    taxel_count: 4
+    layout: dg5f_uspa22_square
+    grid_rows: 2
+    grid_cols: 2
+    offset_row: 14
+    offset_col: 26
+  - name: f2_prox_uSPa22
+    taxel_count: 4
+    layout: dg5f_uspa22_square
+    grid_rows: 2
+    grid_cols: 2
+    offset_row: 8
+    offset_col: 20
+  - name: f3_prox_uSPa22
+    taxel_count: 4
+    layout: dg5f_uspa22_square
+    grid_rows: 2
+    grid_cols: 2
+    offset_row: 7
+    offset_col: 14
+  - name: f4_prox_uSPa22
+    taxel_count: 4
+    layout: dg5f_uspa22_square
+    grid_rows: 2
+    grid_cols: 2
+    offset_row: 8
+    offset_col: 8
+  - name: f5_prox_uSPa22
+    taxel_count: 4
+    layout: dg5f_uspa22_square
+    grid_rows: 2
+    grid_cols: 2
+    offset_row: 9
+    offset_col: 2
+  - name: palm_uSPa46
+    taxel_count: 24
+    layout: dg5f_uspa46_palm
+    grid_rows: 4
+    grid_cols: 6
+    offset_row: 12
+    offset_col: 12

@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="dg5f_r_taxel_viz">
+  <!--
+    Viz description for the DG-5F hand's 16 tactile sensor housings, for the
+    XelaModel(URDF) tab in std_xela_taxel_viz_dg5f / xela_taxel_sidecar_dg5f.
+
+    2026-08-23: this used to be a hand-built placeholder chain with its own
+    (buggy) fixed-joint offsets; it rendered as a squished/overlapping
+    blob instead of a spread hand, and a rotation-axis bug (rz=90 instead of
+    ry=90 on several finger joints) made it worse. Replaced with a thin
+    wrapper that instantiates the REAL, CAD/kinematics-verified hand macro
+    (xela_dg5f_bringup's x_dg5f_hand, the same one ur7e_xdg5f_atag_right_common
+    uses for /robot_description_full) directly; mirroring how
+    std_xela_taxel_viz_ahv4's own viz xacro includes the real
+    allegro_hand_right_r2c.xacro rather than maintaining a separate
+    hand-picked geometry.
+
+    x_dg5f_hand's own taxel joint names are unprefixed (e.g.
+    "f3_dg5f_ft_09_joint") to stay backward compatible with existing callers
+    (real hand bringup, ur7e_dg5f_base.srdf.xacro's disable_collisions
+    entries) that depend on those exact names. This file passes the new
+    sensor_prefix param (added 2026-08-23, defaults to '' everywhere else)
+    so THIS instantiation's taxel names come out "x_taxel_<0|1>_f3_dg5f_ft_09_joint",
+    matching xela_server2_dg5f's *_server_model_joint_map.yaml exactly;
+    x_taxel_1_ for right, x_taxel_0_ for left (xela_server2_dg5f's own
+    ApplyHandSideToJointMap convention).
+  -->
+  <xacro:arg name="hand_side" default="right" />
+  <!-- taxels=0 is used by std_xela_taxel_viz_dg5f.launch.py's generic
+       joint_state_publisher rendering, so it never learns the 124 taxel
+       dot joint names (see that launch file's own comment). -->
+  <xacro:arg name="taxels" default="1" />
+
+  <xacro:include filename="$(find xela_dg5f_bringup)/urdf/x_dg5f_hand.xacro" />
+
+  <link name="world" />
+
+  <xacro:property name="side" value="$(arg hand_side)" />
+  <xacro:property name="sensor_prefix" value="${'x_taxel_1_' if side == 'right' else 'x_taxel_0_'}" />
+
+  <xacro:x_dg5f_hand
+    parent="world"
+    side="${side}"
+    taxels="$(arg taxels)"
+    sensor_collision="0"
+    sensor_prefix="${sensor_prefix}"
+  />
+
+</robot>

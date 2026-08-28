@@ -1,0 +1,9 @@
+output_topic: joint_states
+publish_rate: 30.0
+preserve_input_order: true
+source_list: []
+
+device_profiles:
+  XDG5FR:
+    keep_joints_files:
+      - xdg5fr_joint.yaml
