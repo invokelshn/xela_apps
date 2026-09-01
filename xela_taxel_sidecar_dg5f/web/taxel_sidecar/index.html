@@ -984,6 +984,12 @@
         const explicit = Boolean(options.explicit);
         const priorityBase = explicit ? 100 : 0;
 
+        if (kindHint === "drop" || normalized.includes("drop") || normalized === "contact_loss") {
+          return { label: String(eventName || "drop").toUpperCase(), kind: "explicit-drop", tag: "X", explicit, priority: priorityBase + 28 };
+        }
+        if (kindHint === "grasp_fail") {
+          return { label: String(eventName || "grasp_fail").toUpperCase(), kind: "explicit-grasp-fail", tag: "!", explicit, priority: priorityBase + 27 };
+        }
         if (kindHint === "contact" || normalized.includes("contact")) {
           return { label: "CONTACT", kind: "contact", tag: "C", explicit, priority: priorityBase + 20 };
         }
@@ -1251,15 +1257,19 @@
               ? "#94a3b8"
               : (evt.kind === "slip"
                 ? "#ef4444"
-                : (evt.kind === "explicit-motion"
-                  ? "#60a5fa"
-                  : (evt.kind === "explicit-grasp"
-                    ? "#f59e0b"
-                    : (evt.kind === "explicit-system"
-                      ? "#14b8a6"
-                      : (evt.kind === "explicit-recovery"
-                        ? "#f97316"
-                        : (evt.kind === "explicit-success" ? "#22c55e" : "#cbd5e1")))))));
+                : (evt.kind === "explicit-drop"
+                  ? "#dc2626"
+                  : (evt.kind === "explicit-grasp-fail"
+                    ? "#b91c1c"
+                    : (evt.kind === "explicit-motion"
+                      ? "#60a5fa"
+                      : (evt.kind === "explicit-grasp"
+                        ? "#f59e0b"
+                        : (evt.kind === "explicit-system"
+                          ? "#14b8a6"
+                          : (evt.kind === "explicit-recovery"
+                            ? "#f97316"
+                            : (evt.kind === "explicit-success" ? "#22c55e" : "#cbd5e1"))))))));
           sparkCtx.strokeStyle = color;
           sparkCtx.lineWidth = evt.explicit ? 1.8 : (evt.kind === "slip" ? 1.4 : 1.0);
           sparkCtx.beginPath();
