@@ -259,11 +259,15 @@
     }
 
     .event-tooltip {
-      position: absolute;
+      /* Docked below the sparkline canvas (not absolutely positioned over it) so it never
+         covers nearby event markers -- previously it floated near the cursor/hovered marker,
+         which made it impossible to hover the next marker over in a cluster of closely-spaced
+         events without the tooltip itself blocking them. */
+      position: static;
       pointer-events: none;
-      z-index: 6;
       display: none;
-      max-width: min(420px, 80vw);
+      margin-top: 6px;
+      max-width: 100%;
       white-space: pre-line;
       padding: 6px 8px;
       border-radius: 8px;
@@ -860,14 +864,6 @@
         if (evt.note) lines.push(`note: ${evt.note}`);
         lines.push(`age: ${ageSec.toFixed(2)}s`);
         eventTooltip.textContent = lines.join("\n");
-
-        const left = Math.min(
-          Math.max(4.0, evt.x + 10.0),
-          Math.max(4.0, (sparkline.clientWidth || 300) - 210.0),
-        );
-        const top = Math.max(4.0, hoverState.y - 38.0);
-        eventTooltip.style.left = `${left}px`;
-        eventTooltip.style.top = `${top}px`;
         setEventTooltipVisible(true);
       }
 
