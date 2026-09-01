@@ -953,7 +953,13 @@
             tipF2Max = Math.max(tipF2Max, norm);
           }
         }
-        const normMean = normCount > 0 ? normSum / normCount : NaN;
+        // Match fzSum's convention (starts at 0.0, never becomes NaN): when no point in this
+        // frame has a finite `norm`, report 0 rather than NaN. drawTimelineSeries treats a NaN
+        // sample as a pen-up gap (no line segment drawn at all), so during any point-set
+        // reconfiguration or between-contact stretch where fzSum still draws a flat line at its
+        // near-zero value, normMean's NaN made its own line vanish entirely instead of tracking
+        // fzSum down to zero -- visually indistinguishable from "the whole series never renders".
+        const normMean = normCount > 0 ? normSum / normCount : 0.0;
         return {
           pointCount: points.length,
           normMean,
