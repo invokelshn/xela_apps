@@ -252,7 +252,10 @@
     #sparkline {
       display: block;
       width: 100%;
-      height: 34px;
+      /* Tall enough for 3 stacked event-marker rows (see EVENT_MARKER_* in
+         computeEventMarkerLayout()) so 3 near-simultaneous events can still
+         be told apart by hovering instead of visually colliding. */
+      height: 46px;
       border-radius: 6px;
       background: #0a1627;
       border: 1px solid #1b2a3f;
@@ -571,7 +574,7 @@
           <span id="statsCurrent"></span>
           <span id="followDebug"></span>
         </div>
-        <canvas id="sparkline" width="500" height="34"></canvas>
+        <canvas id="sparkline" width="500" height="46"></canvas>
         <div id="eventTooltip" class="event-tooltip"></div>
       </div>
       <div id="taxelSessionPanelHost"></div>
@@ -825,24 +828,97 @@
         return padX + (1.0 - ageMs / timelineState.windowMs) * innerW;
       }
 
-      function findNearestEventForHover(nowMs, mouseX) {
-        if (!timelineState.events.length) return null;
-        let nearest = null;
-        let bestDist = Number.POSITIVE_INFINITY;
+      // Marker box geometry shared by drawEventMarkers() and the hover hit-test,
+      // so what's drawn and what's hoverable are always the same thing.
+      const EVENT_MARKER_BOX = 8.0;
+      const EVENT_MARKER_ROW_GAP = 1.0;
+      const EVENT_MARKER_ROW_HEIGHT = EVENT_MARKER_BOX + EVENT_MARKER_ROW_GAP;
+      const EVENT_MARKER_BASE_Y = 12.0;
+      // Two boxes closer than this in x would visually overlap, so they get
+      // stacked into separate rows instead (this is what the user asked for:
+      // near-simultaneous events should be independently hoverable rather
+      // than fighting over the same pixels).
+      const EVENT_MARKER_CLUSTER_GAP = EVENT_MARKER_BOX + 1.0;
+
+      // Lays out every currently-visible event into (x, row) using simple
+      // greedy interval packing (like a timeline "swimlane" view): events are
+      // placed in x order, and each one takes the first row whose most
+      // recent occupant is far enough away in x. Ties within the same row
+      // can't happen once packed, which is what makes hover unambiguous.
+      function computeEventMarkerLayout(nowMs) {
+        if (!sparkline || !timelineState.events.length) return [];
+        const h = sparkline.height;
+        const maxRows = Math.max(
+          1,
+          Math.floor((h - EVENT_MARKER_BASE_Y - 4.0) / EVENT_MARKER_ROW_HEIGHT),
+        );
+        const visible = [];
         for (const evt of timelineState.events) {
           const x = getEventMarkerScreenX(nowMs, evt.t);
-          if (!Number.isFinite(x)) continue;
-          const d = Math.abs(mouseX - x);
-          if (
-            d < bestDist ||
-            (Math.abs(d - bestDist) < 0.5 && (evt.priority || 0) > ((nearest && nearest.priority) || 0))
-          ) {
+          if (Number.isFinite(x)) visible.push({ evt, x });
+        }
+        visible.sort((a, b) => a.x - b.x);
+
+        const rowNextFreeX = new Array(maxRows).fill(Number.NEGATIVE_INFINITY);
+        const laid = [];
+        for (const { evt, x } of visible) {
+          // Scan every row for a free slot (gap >= CLUSTER_GAP since that
+          // row's last occupant) instead of stopping at the first blocked
+          // row and forcing the last row — that earlier version made any
+          // 3rd event in a cluster collide with whichever event already had
+          // the last row, instead of spreading across all available rows.
+          let row = -1;
+          let bestRow = 0;
+          let bestGap = Number.NEGATIVE_INFINITY;
+          for (let r = 0; r < maxRows; r += 1) {
+            const gap = x - rowNextFreeX[r];
+            if (gap >= EVENT_MARKER_CLUSTER_GAP) {
+              row = r;
+              break;
+            }
+            if (gap > bestGap) {
+              bestGap = gap;
+              bestRow = r;
+            }
+          }
+          // No row is fully free (more clustered events than rows fit):
+          // fall back to whichever row's most recent occupant is farthest
+          // away, so a 4th+ colliding event still spreads out as much as
+          // possible instead of always stacking onto one fixed row.
+          if (row < 0) row = bestRow;
+          rowNextFreeX[row] = x;
+          laid.push({ evt, x, row, y: EVENT_MARKER_BASE_Y + row * EVENT_MARKER_ROW_HEIGHT });
+        }
+        return laid;
+      }
+
+      function findNearestEventForHover(nowMs, mouseX, mouseY) {
+        const layout = computeEventMarkerLayout(nowMs);
+        if (!layout.length) return null;
+        let best = null;
+        let bestDist = Number.POSITIVE_INFINITY;
+        for (const { evt, x, y } of layout) {
+          const boxLeft = x + 1.0;
+          const boxCenterX = boxLeft + EVENT_MARKER_BOX / 2.0;
+          const boxCenterY = y + EVENT_MARKER_BOX / 2.0;
+          const insideBox =
+            mouseX >= boxLeft - 1.0 && mouseX <= boxLeft + EVENT_MARKER_BOX + 1.0 &&
+            mouseY >= y - 1.0 && mouseY <= y + EVENT_MARKER_BOX + 1.0;
+          if (insideBox) {
+            // Rows are packed to never overlap, so a direct box hit is
+            // always unambiguous — no need to keep scanning.
+            return { ...evt, x, y };
+          }
+          const dx = Math.max(0.0, Math.abs(mouseX - boxCenterX) - EVENT_MARKER_BOX / 2.0);
+          const dy = Math.max(0.0, Math.abs(mouseY - boxCenterY) - EVENT_MARKER_BOX / 2.0);
+          const d = Math.hypot(dx, dy);
+          if (d < bestDist) {
             bestDist = d;
-            nearest = { ...evt, x };
+            best = { ...evt, x, y };
           }
         }
-        if (!nearest || bestDist > 12.0) return null;
-        return nearest;
+        if (!best || bestDist > 12.0) return null;
+        return best;
       }
 
       function updateEventTooltip(nowMs) {
@@ -850,7 +926,7 @@
           setEventTooltipVisible(false);
           return;
         }
-        const evt = findNearestEventForHover(nowMs, hoverState.x);
+        const evt = findNearestEventForHover(nowMs, hoverState.x, hoverState.y);
         if (!evt) {
           setEventTooltipVisible(false);
           return;
@@ -1240,19 +1316,11 @@
 
       function drawEventMarkers(nowMs) {
         if (!sparkCtx || timelineState.events.length === 0) return;
-        const w = sparkline.width;
         const h = sparkline.height;
-        const padX = 3.0;
-        const innerW = Math.max(1, w - padX * 2);
-        const drawEvents = timelineState.events
+        const layout = computeEventMarkerLayout(nowMs)
           .slice()
-          .sort((a, b) => ((a.priority || 0) - (b.priority || 0)) || (a.t - b.t));
-        for (const evt of drawEvents) {
-          const ageMs = nowMs - evt.t;
-          if (ageMs < 0.0 || ageMs > timelineState.windowMs) {
-            continue;
-          }
-          const x = padX + (1.0 - ageMs / timelineState.windowMs) * innerW;
+          .sort((a, b) => ((a.evt.priority || 0) - (b.evt.priority || 0)) || (a.evt.t - b.evt.t));
+        for (const { evt, x, y } of layout) {
           const color = evt.kind === "contact"
             ? "#22d3ee"
             : (evt.kind === "release"
@@ -1275,16 +1343,19 @@
           sparkCtx.strokeStyle = color;
           sparkCtx.lineWidth = evt.explicit ? 1.8 : (evt.kind === "slip" ? 1.4 : 1.0);
           sparkCtx.beginPath();
-          sparkCtx.moveTo(x, 12.0);
+          // The stem always spans the full marker column (not just down to
+          // this row's box) so the event's exact time stays readable against
+          // the data trace even when it's been pushed to a lower row.
+          sparkCtx.moveTo(x, EVENT_MARKER_BASE_Y);
           sparkCtx.lineTo(x, h - 2.0);
           sparkCtx.stroke();
 
           const tag = String(evt.tag || "E").slice(0, 1).toUpperCase();
           sparkCtx.fillStyle = color;
-          sparkCtx.fillRect(x + 1.0, 12.0, 8.0, 8.0);
+          sparkCtx.fillRect(x + 1.0, y, EVENT_MARKER_BOX, EVENT_MARKER_BOX);
           sparkCtx.fillStyle = "#0b1222";
           sparkCtx.font = "8px ui-monospace, SFMono-Regular, Menlo, monospace";
-          sparkCtx.fillText(tag, x + 3.0, 18.0);
+          sparkCtx.fillText(tag, x + 3.0, y + 6.0);
         }
       }
 
