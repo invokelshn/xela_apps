@@ -8,7 +8,32 @@ export function createRosbridgeClient({
   onCloseOpened,
   onErrorOpened,
   onMessageParsed,
+  // Every candidate can fail (server not up yet) or an established connection can drop (e.g. the
+  // backend container restarting) with zero visible indication for callers that pass a no-op
+  // setStatus (see xela_atag_taxel_viewer's dedicated connection in index.html) -- without this,
+  // such a client is permanently dead for the rest of the page's life, silently, once its single
+  // candidate fails once. Auto-retry from candidate 0 after a fixed delay closes that gap.
+  retryDelayMs = 3000,
 }) {
+  let retryTimer = null;
+
+  function clearRetryTimer() {
+    if (retryTimer !== null) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  }
+
+  function scheduleRetry() {
+    if (state.manualClose || retryTimer !== null) {
+      return;
+    }
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      connect(0);
+    }, retryDelayMs);
+  }
+
   function closeExisting() {
     if (!state.ws) {
       return;
@@ -25,6 +50,8 @@ export function createRosbridgeClient({
   }
 
   function connect(candidateIndex = 0) {
+    clearRetryTimer();
+    state.manualClose = false;
     closeExisting();
 
     if (candidateIndex >= wsCandidates.length) {
@@ -34,6 +61,7 @@ export function createRosbridgeClient({
       if (topicInfoEl) {
         topicInfoEl.textContent = topicInfoTextFor("");
       }
+      scheduleRetry();
       return;
     }
 
@@ -68,6 +96,7 @@ export function createRosbridgeClient({
       } else {
         setStatus("Disconnected", false);
       }
+      scheduleRetry();
     };
 
     ws.onerror = () => {
@@ -115,7 +144,11 @@ export function createRosbridgeClient({
 
   return {
     connect,
-    close: closeExisting,
+    close: () => {
+      state.manualClose = true;
+      clearRetryTimer();
+      closeExisting();
+    },
     sendServiceRequest,
   };
 }

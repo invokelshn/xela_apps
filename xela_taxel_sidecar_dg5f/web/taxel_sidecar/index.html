@@ -2861,6 +2861,10 @@
 
       function connect(candidateIndex = 0) {
         rosbridgeClient.connect(candidateIndex);
+        // The dedicated taxel-viewer connection (Session panel's service calls +
+        // live_module_data) auto-retries on its own now, but the manual Reconnect button should
+        // still force an immediate retry rather than making the user wait out the backoff delay.
+        taxelViewerRosbridgeClient.connect(0);
       }
 
       window.addEventListener("error", (event) => {
