@@ -16,6 +16,9 @@ export function createRosbridgeClient({
   retryDelayMs = 3000,
 }) {
   let retryTimer = null;
+  // Topics we've been asked to advertise, replayed on every (re)connect so a dropped/retried
+  // WS doesn't silently leave rosbridge without our advertisement (see connect()/ws.onopen below).
+  const desiredAdvertisements = new Map(); // topic -> type
 
   function clearRetryTimer() {
     if (retryTimer !== null) {
@@ -80,6 +83,9 @@ export function createRosbridgeClient({
       state.connected = true;
       state.activeWsUrl = wsUrl;
       setStatus("Connected", true);
+      for (const [topic, type] of desiredAdvertisements) {
+        sendAdvertise(topic, type);
+      }
       if (typeof onOpen === "function") {
         onOpen(wsUrl, ws);
       }
@@ -142,6 +148,28 @@ export function createRosbridgeClient({
     state.ws.send(JSON.stringify(req));
   }
 
+  function sendAdvertise(topic, type) {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    state.ws.send(JSON.stringify({ op: "advertise", topic, type }));
+  }
+
+  // Registers `topic` for outbound publishing. Safe to call once at startup -- the advertisement
+  // is remembered and replayed automatically on every reconnect (see ws.onopen above).
+  function advertiseTopic(topic, type) {
+    desiredAdvertisements.set(topic, type);
+    sendAdvertise(topic, type);
+  }
+
+  function publishTopic(topic, msg) {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+      console.warn("Cannot publish - WS not connected", topic);
+      return;
+    }
+    state.ws.send(JSON.stringify({ op: "publish", topic, msg }));
+  }
+
   return {
     connect,
     close: () => {
@@ -150,5 +178,7 @@ export function createRosbridgeClient({
       closeExisting();
     },
     sendServiceRequest,
+    advertiseTopic,
+    publishTopic,
   };
 }

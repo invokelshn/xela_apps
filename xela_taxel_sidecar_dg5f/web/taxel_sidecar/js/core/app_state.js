@@ -53,6 +53,11 @@ export function createAppState(config) {
         robotDescriptionVersion: 0,
         robotRootLink: "",
         tfEdges: new Map(),
+        // Bumped by onTfMessage whenever a non-empty TF message actually arrives -- lets
+        // updateRobotLinkTransforms() skip its per-link TF walk when nothing changed since the
+        // last render tick, instead of redoing it unconditionally on every rAF (2026-09-08 perf
+        // fix, see updateRobotLinkTransforms's own comment).
+        tfVersion: 0,
         frameAliasCache: new Map(),
         pendingRobotDescriptionService: false,
         lastRobotDescriptionServiceReqMs: 0,
@@ -67,6 +72,7 @@ export function createAppState(config) {
         robotDescriptionVersion: 0,
         robotRootLink: "",
         tfEdges: new Map(),
+        tfVersion: 0,
         frameAliasCache: new Map(),
         pendingRobotDescriptionService: false,
         lastRobotDescriptionServiceReqMs: 0,

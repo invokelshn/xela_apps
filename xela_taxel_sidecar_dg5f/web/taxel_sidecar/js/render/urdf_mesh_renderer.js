@@ -142,6 +142,28 @@ export function createUrdfMeshRenderer({
   const resolveModuleIdFromName =
     typeof extractModuleIdFromName === "function" ? extractModuleIdFromName : (() => null);
 
+  // resize() is called on every renderUrdfMesh() tick (i.e. on every payload/tf update, not
+  // just on an actual window/container resize) -- without this guard it called
+  // renderer.setSize() unconditionally every time, which rewrites the canvas's width/height
+  // attributes (forcing a full backing-buffer reallocation) even when nothing changed. This
+  // was found empirically (2026-09-07) via a Chrome Performance recording: "set width" alone
+  // was 15.5% of total main-thread time over a 28s capture on real GPU-accelerated hardware.
+  let lastResizeW = 0;
+  let lastResizeH = 0;
+
+  // 2026-09-09: same fix as index.html's resizeCanvas() -- getBoundingClientRect() every rAF
+  // tick forces a synchronous layout flush of whatever DOM/style writes happened elsewhere that
+  // frame (a real Chrome Performance recording isolated this exact pattern taking 69.7% of a
+  // frozen window, see resizeCanvas's comment). ResizeObserver replaces the per-frame poll.
+  let cachedUrdf3dLayerCssSize = { width: 0, height: 0 };
+  new ResizeObserver((entries) => {
+    const entry = entries[0];
+    const box = entry.contentBoxSize?.[0];
+    cachedUrdf3dLayerCssSize = box
+      ? { width: box.inlineSize, height: box.blockSize }
+      : { width: entry.contentRect.width, height: entry.contentRect.height };
+  }).observe(urdf3dLayer);
+
   function parseRootLink(xmlText) {
     const parser = new DOMParser();
     const xml = parser.parseFromString(xmlText, "application/xml");
@@ -170,9 +192,13 @@ export function createUrdfMeshRenderer({
   function resize() {
     const m = state.urdfMesh;
     if (!m.ready) return;
-    const rect = urdf3dLayer.getBoundingClientRect();
-    const w = Math.max(1, rect.width);
-    const h = Math.max(1, rect.height);
+    const w = Math.max(1, cachedUrdf3dLayerCssSize.width);
+    const h = Math.max(1, cachedUrdf3dLayerCssSize.height);
+    if (w === lastResizeW && h === lastResizeH) {
+      return;
+    }
+    lastResizeW = w;
+    lastResizeH = h;
     m.camera.aspect = w / h;
     m.camera.updateProjectionMatrix();
     m.renderer.setSize(w, h, false);
@@ -204,7 +230,11 @@ export function createUrdfMeshRenderer({
       camera.up.set(0, 0, 1);
       camera.position.set(0.18, -0.22, 0.16);
 
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+      // preserveDrawingBuffer: true -- required so canvas.toDataURL() (Operator mode's
+      // contact-history filmstrip, see operator_filmstrip.js) can reliably capture a real
+      // frame instead of a blank/garbage buffer; WebGL clears the buffer after each frame
+      // by default. No visual effect, small extra copy cost per frame.
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
       // AH sets no toneMapping (leaves three.js's default NoToneMapping) --
       // matched here (2026-08-24) after finding this was the one remaining
       // difference between the two renderers' setup once lights/material were

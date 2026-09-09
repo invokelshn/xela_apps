@@ -132,6 +132,88 @@
       color: #e2f2fb;
     }
 
+    /* Operator mode: hide developer-only controls, show operator-only overlay containers.
+       Phase 2 skeleton only -- operator-only hosts are populated in later phases. */
+    .app.operator-active .dev-only {
+      display: none !important;
+    }
+    .operator-only {
+      display: none;
+    }
+    .app.operator-active .operator-only {
+      display: block;
+    }
+
+    /* Sits beside .viz in .operator-viz-row (see that rule's comment) -- fixed compact width,
+       height:100% of the row (which now owns the fixed/resizable height) so a long card list
+       never exceeds .viz's height; .op-alerts' own overflow-y:auto scrolls instead. */
+    #operatorAlertsHost {
+      flex: 0 0 280px;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* Phase 8: Operator's collapsed "graph" section reuses the dev-mode session panel
+       instance wholesale (moved, not cloned -- see the "그래프 보기" toggle handler), but
+       hides its capture/scrub/module-select chrome and each module card's raw heatmap
+       canvas, keeping only the force_total/shear_mag_avg/shear_normal_ratio line chart and
+       shear (x,y) snapshot grid. Scoped to #operatorGraphHost so Admin's own view of this
+       same component (when moved back) is completely unaffected. */
+    #operatorGraphHost .taxel-session-toolbar,
+    #operatorGraphHost .taxel-session-controls-row {
+      display: none;
+    }
+    #operatorGraphHost .taxel-session-toolbar:has([data-action="toggle-live"]) {
+      display: flex;
+    }
+    #operatorGraphHost .taxel-session-toolbar:has([data-action="toggle-live"]) > :not([data-action="toggle-live"]) {
+      display: none;
+    }
+    /* Keep the time-scrub slider and Follow Latest usable -- with Live off, this is how an
+       operator reviews the buffered history instead of only ever seeing the latest sample. */
+    #operatorGraphHost .taxel-session-toolbar:has([data-field="time-scrub"]),
+    #operatorGraphHost .taxel-session-toolbar:has([data-action="follow-latest"]) {
+      display: flex;
+    }
+    #operatorGraphHost canvas[data-role="heatmap"],
+    #operatorGraphHost .taxel-session-card-sub:has(+ canvas[data-role="heatmap"]) {
+      display: none;
+    }
+    /* Line chart + shear(x,y) snapshot side by side instead of stacked -- selectors target
+       by role/adjacency (not nth-child position) so this survives the heatmap items above
+       staying in the DOM (just display:none, so grid auto-placement already skips them). */
+    #operatorGraphHost .taxel-session-card-body {
+      display: grid;
+      grid-template-columns: 1fr 180px;
+      column-gap: 14px;
+      align-items: start;
+    }
+    #operatorGraphHost .taxel-session-card-sub:has(+ canvas[data-role="line"]) {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    #operatorGraphHost canvas[data-role="line"] {
+      grid-column: 1;
+      grid-row: 2;
+    }
+    #operatorGraphHost .taxel-session-card-sub:has(+ canvas[data-role="quiver"]) {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    #operatorGraphHost canvas[data-role="quiver"] {
+      grid-column: 2;
+      grid-row: 2;
+      justify-self: center;
+    }
+    /* The scrub bar spans the whole card width by default, but the line chart it's meant to
+       line up with is now only the grid's 1fr column (the shear snapshot's 180px + 14px gap
+       takes the rest) -- reserve that same width on the right so the track's right edge
+       stops where the line chart's right edge stops. */
+    #operatorGraphHost .taxel-session-scrub-track-wrap {
+      padding-right: 194px;
+    }
+
     .mini {
       font-size: 12px;
       color: var(--muted);
@@ -282,13 +364,31 @@
       box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
     }
 
-    .viz {
+    /* Operator layout: 3D view + alert cards side by side, same row. Wraps .viz (which used to
+       own grid-row:4, height, and resize:vertical directly) so Operator's alert card panel can
+       sit to its right and never exceed its height.
+       2026-09-08 fix: the resize handle + explicit height/min/max moved from .viz to THIS row
+       -- .viz used to own them directly, and align-items:stretch does *not* override an item's
+       own explicit height, so a tall alert-card list (content-sized, no cap of its own) grew
+       the row past .viz's fixed 420px instead of .viz growing to match or the cards scrolling
+       within it. With the row itself carrying the fixed/resizable height and both children at
+       height:100%, neither can grow past it -- overflow-y:auto on .op-alerts (see
+       operator_alert_cards.js) scrolls instead. */
+    .operator-viz-row {
       grid-row: 4;
-      position: relative;
+      display: flex;
+      gap: 10px;
       height: 420px;
       min-height: 220px;
       max-height: 90vh;
       resize: vertical;
+      overflow: hidden;
+    }
+
+    .viz {
+      flex: 1 1 auto;
+      height: 100%;
+      position: relative;
       border: 1px solid var(--line);
       border-radius: 10px;
       background: linear-gradient(180deg, #0d1729 0%, #0b1221 100%);
@@ -435,7 +535,7 @@
 </head>
 
 <body>
-  <div class="app">
+  <div class="app" id="app">
     <div class="toolbar status-toolbar">
       <div class="status-wrap">
         <div class="status" id="statusLine">
@@ -452,33 +552,35 @@
       <div class="btn-group-sep"></div>
       <!-- Mode group -->
       <div class="btn-group">
-        <button class="mode-btn" id="gridBtn">Grid</button>
-        <button class="mode-btn" id="xelaBtn">XelaModel</button>
-        <button class="mode-btn" id="robotBtn">RobotModel</button>
+        <button class="mode-btn dev-only" id="gridBtn">Grid</button>
+        <button class="mode-btn dev-only" id="xelaBtn">XelaModel</button>
+        <button class="mode-btn dev-only" id="robotBtn">RobotModel</button>
+        <div class="btn-group-sep dev-only"></div>
+        <button class="mode-btn" id="operatorBtn" title="운영자용 요약 화면 (raw 데이터/디버그 컨트롤 없음)">Operator</button>
       </div>
-      <div class="btn-group-sep"></div>
+      <div class="btn-group-sep dev-only"></div>
       <!-- Baseline group -->
-      <div class="btn-group">
+      <div class="btn-group dev-only">
         <button class="mode-btn" id="rebaselineBtn" title="Recalculate sensor baseline (all modes)">Re-baseline</button>
         <span id="baselineStatus">Baseline: ready</span>
       </div>
-      <div class="btn-group-sep"></div>
+      <div class="btn-group-sep dev-only"></div>
       <!-- Function group -->
-      <div class="btn-group">
+      <div class="btn-group dev-only">
         <button class="mode-btn" id="followBtn">FollowCam</button>
         <button class="mode-btn" id="analysisBtn">Analysis</button>
       </div>
-      <div class="btn-group-sep"></div>
+      <div class="btn-group-sep dev-only"></div>
       <!-- Sensor view group -->
-      <div class="btn-group">
+      <div class="btn-group dev-only">
         <button class="mode-btn active" id="sensorViewAllBtn" title="모든 센서 모듈 표시 (BT 필터 무시)">AllSensors</button>
         <button class="mode-btn" id="sensorViewActiveBtn" title="BT/페이로드에서 활성화된 센서 모듈만 표시">ActiveOnly</button>
       </div>
-      <div class="btn-group-sep"></div>
+      <div class="btn-group-sep dev-only"></div>
       <!-- Simulate group -->
-      <button class="mode-btn" id="simBtn" style="display:none">Simulate</button>
+      <button class="mode-btn dev-only" id="simBtn" style="display:none">Simulate</button>
       <!-- Simulate sub-toolbar: visible when Simulate is toggled on -->
-      <div class="simulate-row" id="simulateRow" style="display:none">
+      <div class="simulate-row dev-only" id="simulateRow" style="display:none">
         <span class="sim-label">Base:</span>
         <button class="sim-btn mode-btn active" id="simRandomBtn"      title="Random force variation (default)">RANDOM</button>
         <button class="sim-btn mode-btn"        id="simSilentBtn"      title="No contact — silent baseline">SILENT</button>
@@ -492,7 +594,7 @@
         <span class="sim-state-badge" id="simStateBadge">state: RANDOM</span>
       </div>
     </div>
-    <div class="toolbar module-toolbar" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+    <div class="toolbar module-toolbar dev-only" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
       <div style="grid-column: 1 / -1; display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
 
         <div style="display: flex; flex-direction: column; gap: 4px;">
@@ -550,18 +652,31 @@
       </div>
     </div>
 
-    <div class="viz">
-      <div id="urdf3dLayer" class="urdf3d-layer"></div>
-      <canvas id="canvas"></canvas>
-      <div class="legend">
-        <h4 id="legendTitle">Intensity + XY Direction</h4>
-        <div class="scale"></div>
-        <div class="scale-label"><span>0</span><span>1</span></div>
+    <!-- Operator mode: status bar overlay (Phase 3 fills this in) -->
+    <div class="operator-only" id="operatorStatusBarHost"></div>
+    <!-- Operator mode: independent module select (Phase 4, see operator_module_select.js) -->
+    <div class="operator-only" id="operatorModulesHost"></div>
+    <!-- Operator mode: Sensitivity 1/2/3 cycle (Phase 5; Live On/Off removed, see operator_viz_controls.js) -->
+    <div class="operator-only" id="operatorVizControlsHost"></div>
+
+    <div class="operator-viz-row">
+      <div class="viz">
+        <div id="urdf3dLayer" class="urdf3d-layer"></div>
+        <canvas id="canvas"></canvas>
+        <div class="legend">
+          <h4 id="legendTitle">Intensity + XY Direction</h4>
+          <div class="scale"></div>
+          <div class="scale-label"><span>0</span><span>1</span></div>
+        </div>
+        <div class="hint" id="hintText"></div>
       </div>
-      <div class="hint" id="hintText"></div>
+
+      <!-- Operator mode: sensor-detected + control-response alert cards (Phase 6), beside the
+           3D view (2026-09-08 layout change) -->
+      <div class="operator-only" id="operatorAlertsHost"></div>
     </div>
 
-    <div class="toolbar stats-row" id="statsRow">
+    <div class="toolbar stats-row dev-only" id="statsRow">
       <div class="mini" id="stats">
         <div class="stats-top">
           <div class="stats-scales">
@@ -577,8 +692,24 @@
         <canvas id="sparkline" width="500" height="46"></canvas>
         <div id="eventTooltip" class="event-tooltip"></div>
       </div>
+      <!-- "Show Behavior Event" marker settings (renamed from "Show in Main View", moved here
+           2026-09-08 per user request) -- lives in the Admin screen now, right below the
+           norm_mean/fz_sum sparkline and right above the Live/Capture toolbar, i.e. no longer
+           Operator-only. Configuring it here now also makes markers publish regardless of
+           Admin/Operator mode (see the grasp_event handler's publishOperatorViewMarker call,
+           no longer gated by operator-active) -- filmstrip/alert-card capture are unaffected,
+           still Operator-only. -->
+      <div id="operatorMainViewMarkersHost"></div>
       <div id="taxelSessionPanelHost"></div>
     </div>
+
+    <!-- Operator mode: collapsed graph panel (Phase 8 fills this in, reuses stats-row content) -->
+    <div class="operator-only" id="operatorGraphHost"></div>
+    <!-- Operator mode: contact-history filmstrip (Phase 7) -- placed right below the Graph
+         panel block (2026-09-08 layout change); shown/hidden together with Graphs (default
+         Hidden, matching operatorGraphsShown's initial false -- see setOperatorGraphsShown)
+         and its capture gated by Live On/Off, both wired in JS rather than here. -->
+    <div class="operator-only" id="operatorFilmstripHost" style="display: none"></div>
   </div>
 
   <script type="module">
@@ -591,6 +722,12 @@
     import { createUiFeedback } from "./js/core/ui_feedback.js";
     import { updateSmoothedVectors as updateSmoothedVectorsCore } from "./js/core/vector_smoothing.js";
     import { createTaxelSessionPanel } from "./js/session/taxel_session_panel.js";
+    import { createOperatorStatusBar } from "./js/operator/operator_status_bar.js";
+    import { createOperatorModuleSelect } from "./js/operator/operator_module_select.js";
+    import { createOperatorVizControls } from "./js/operator/operator_viz_controls.js";
+    import { createOperatorAlertCards, getKindDisplayInfo } from "./js/operator/operator_alert_cards.js";
+    import { createOperatorMainViewMarkerSettings } from "./js/operator/operator_main_view_markers.js";
+    import { createOperatorFilmstrip } from "./js/operator/operator_filmstrip.js";
 
     (() => {
       const runtimeConfig = buildRuntimeConfig(window);
@@ -626,6 +763,8 @@
       const gridBtn = document.getElementById("gridBtn");
       const xelaBtn = document.getElementById("xelaBtn");
       const robotBtn = document.getElementById("robotBtn");
+      const operatorBtn = document.getElementById("operatorBtn");
+      const appEl = document.getElementById("app");
       const vectorBtn = document.getElementById("vectorBtn");
       const followBtn = document.getElementById("followBtn");
       const analysisBtn = document.getElementById("analysisBtn");
@@ -993,7 +1132,12 @@
       }
 
       function computeAnalysisTelemetry(payload) {
-        const points = Array.isArray(payload?.urdf?.points)
+        // 2026-09-08 bug fix: `payload.urdf.points` is a real array (Array.isArray true) but
+        // *empty* while in Grid mode (confirmed via raw WS payload inspection -- the bridge only
+        // populates it for the URDF/Xela/Robot views), so the old check here always "found" it
+        // and never fell through to grid.points -- this made Analysis stats show "norm_mean=-"
+        // etc. the whole time Grid mode was active (points.length ended up 0 either way).
+        const points = (Array.isArray(payload?.urdf?.points) && payload.urdf.points.length > 0)
           ? payload.urdf.points
           : (Array.isArray(payload?.grid?.points) ? payload.grid.points : []);
         if (!points.length) {
@@ -1018,7 +1162,12 @@
           if (Number.isFinite(fz)) {
             fzSum += fz;
           }
-          const moduleId = extractModuleIdFromFrame(p?.frame_id);
+          // extractModuleIdFromFrame returns a numeric index ("01"/"02", ported from the AH
+          // sidecar's sensor_pos-based module identity) and never matches DG5F's
+          // "f1_dg5f_ft"-style names -- this comparison was silently always false, so
+          // tipF1Norm/tipF2Norm were always NaN. extractModuleIdFromName (used elsewhere in
+          // this file, e.g. resolveLinkColorForSelection) matches DG5F's real module ids.
+          const moduleId = extractModuleIdFromName(p?.frame_id);
           if (moduleId === "f1_dg5f_ft" && Number.isFinite(norm)) {
             tipF1Max = Math.max(tipF1Max, norm);
           } else if (moduleId === "f2_dg5f_ft" && Number.isFinite(norm)) {
@@ -1040,6 +1189,202 @@
           tipF1Norm: Number.isFinite(tipF1Max) ? tipF1Max : NaN,
           tipF2Norm: Number.isFinite(tipF2Max) ? tipF2Max : NaN,
         };
+      }
+
+      // Per-tip force in Newtons for a pinch grasp (thumb=f1_dg5f_ft, index=f2_dg5f_ft),
+      // used by the Operator alert cards (see plan doc's Phase 6 force-unit note): this is
+      // more meaningful than a sum across every active module, since DG5F pinch only ever
+      // loads these two tips. Uses extractModuleIdFromName (not extractModuleIdFromFrame --
+      // that one returns a numeric index like "01"/"02", never "f1_dg5f_ft", so comparing it
+      // against those strings above in tipF1Max/tipF2Max is a dormant bug, out of scope here).
+      // p.fz is already baseline-subtracted + deadbanded server-side (xela_taxel_web_bridge_node.cpp);
+      // RAW_TAXEL_SCALE_N is the same constant the real grasp controller uses (see
+      // reference_dg5f_taxel_raw_to_newton_conversion.md / object_profile.hpp).
+      function computeTipForcesN(payload) {
+        const RAW_TAXEL_SCALE_N = 0.001;
+        // 2026-09-08 bug fix: `payload.urdf.points` is a real array (Array.isArray true) but
+        // *empty* while in Grid mode (confirmed via raw WS payload inspection -- the bridge only
+        // populates it for the URDF/Xela/Robot views), so the old check here always "found" it
+        // and never fell through to grid.points -- this made Analysis stats show "norm_mean=-"
+        // etc. the whole time Grid mode was active (points.length ended up 0 either way).
+        const points = (Array.isArray(payload?.urdf?.points) && payload.urdf.points.length > 0)
+          ? payload.urdf.points
+          : (Array.isArray(payload?.grid?.points) ? payload.grid.points : []);
+        const sums = { f1_dg5f_ft: 0, f2_dg5f_ft: 0 };
+        const counts = { f1_dg5f_ft: 0, f2_dg5f_ft: 0 };
+        for (const p of points) {
+          const moduleId = extractModuleIdFromName(p?.frame_id);
+          if (moduleId !== "f1_dg5f_ft" && moduleId !== "f2_dg5f_ft") continue;
+          const fz = Number(p?.fz);
+          if (!Number.isFinite(fz)) continue;
+          sums[moduleId] += Math.abs(fz);
+          counts[moduleId] += 1;
+        }
+        return {
+          f1N: counts.f1_dg5f_ft > 0 ? (sums.f1_dg5f_ft / counts.f1_dg5f_ft) * RAW_TAXEL_SCALE_N : NaN,
+          f2N: counts.f2_dg5f_ft > 0 ? (sums.f2_dg5f_ft / counts.f2_dg5f_ft) * RAW_TAXEL_SCALE_N : NaN,
+        };
+      }
+
+      // Text-only (no background box -- see plan doc "실측으로 확정된 사실" #8: a CUBE background
+      // is a real 3D object fixed to the hand frame, while TEXT_VIEW_FACING always billboards to
+      // face the camera, so the two visibly detach from each other as soon as the operator orbits
+      // the view; confirmed with screenshots, user opted to drop the box). scale=1.0 and the
+      // 0,0,0.20 offset off rl_dg_back_cover are both empirically-confirmed values (Phase 0).
+      const OPERATOR_VIEW_MARKER_FRAME = "rl_dg_back_cover";
+      // Fallback only -- the real, user-adjustable value comes from
+      // operatorMainViewMarkerSettings.getOffset() (Phase 5, the "Offset from hand back" fields
+      // in the Operator panel's "Show in Main View" section).
+      const OPERATOR_VIEW_MARKER_DEFAULT_OFFSET = { x: -0.15, y: 0.0, z: 0.20 };
+      const OPERATOR_VIEW_MARKER_DEFAULT_STACK_SPACING = -0.10;
+
+      function buildOperatorViewMarker(evt, tipForcesN, slotIndex, markerId, offset, stackSpacing) {
+        const kind = String(evt?.kind || "").trim();
+        const info = getKindDisplayInfo(kind);
+        const f1N = Number(tipForcesN?.f1N);
+        const f2N = Number(tipForcesN?.f2N);
+        const forceParts = [];
+        if (Number.isFinite(f1N)) forceParts.push(`F1(thumb) ${f1N.toFixed(3)} N`);
+        if (Number.isFinite(f2N)) forceParts.push(`F2(index) ${f2N.toFixed(3)} N`);
+        const text = forceParts.length > 0 ? `${info.label}\n${forceParts.join(" · ")}` : info.label;
+
+        const colorRgb = hexToRgb01(info.color);
+
+        return {
+          header: { frame_id: OPERATOR_VIEW_MARKER_FRAME },
+          ns: "operator_view_marker",
+          id: markerId,
+          type: 9, // TEXT_VIEW_FACING
+          action: 0, // ADD
+          pose: {
+            position: {
+              // Stacking along x (2026-09-08 user preference) rather than z -- purely a
+              // direction choice for how consecutive cards fan out, unrelated to why x is the
+              // CUBE-background's "thin" axis elsewhere in this file (that box was dropped).
+              x: offset.x + stackSpacing * slotIndex,
+              y: offset.y,
+              z: offset.z,
+            },
+            orientation: { x: 0, y: 0, z: 0, w: 1 },
+          },
+          scale: { x: 1.0, y: 1.0, z: 1.0 },
+          color: { r: colorRgb.r, g: colorRgb.g, b: colorRgb.b, a: 1.0 },
+          text,
+          // Slot 0 (newest) gets a longer fade; older slots clear out sooner -- 2026-09-08 user
+          // feedback: back-to-back events stacking briefly reads fine, but once things settle
+          // down every card (including the newest) should eventually disappear on its own.
+          lifetime: { sec: operatorViewMarkerLifetimeMsFor(slotIndex) / 1000, nanosec: 0 },
+        };
+      }
+
+      function hexToRgb01(hex) {
+        const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex || ""));
+        if (!m) return { r: 1, g: 1, b: 1 };
+        return { r: parseInt(m[1], 16) / 255, g: parseInt(m[2], 16) / 255, b: parseInt(m[3], 16) / 255 };
+      }
+
+      // Fixed-depth stack (newest first) of marker ids currently "live" in the Studio
+      // Visualization panel -- same "fixed slot count, oldest falls off" shape as the filmstrip
+      // (operator_filmstrip.js). Each slot reuses one marker id (operator_view_marker/700+i)
+      // rather than minting a new id per event, so an old slot's marker is naturally replaced
+      // (ADD with the same id = MODIFY) when a new event pushes into it.
+      const OPERATOR_VIEW_MARKER_MAX_SLOTS = 3;
+      const operatorViewMarkerState = {
+        // Each entry: { markerId, msg } for the marker currently occupying that slot, or null.
+        slots: new Array(OPERATOR_VIEW_MARKER_MAX_SLOTS).fill(null),
+      };
+
+      function publishOperatorViewMarkerMsg(msg) {
+        rosbridgeClient.publishTopic("/visual_markers", { markers: [msg] });
+      }
+
+      // 2026-09-08: tried publishing each new marker 3x over ~0.6s to mitigate Studio's
+      // Visualization panel occasionally failing to resolve rl_dg_back_cover's TF in time
+      // (reported during active Objective execution, correlating with the CPU spikes found in
+      // the perf investigation above). This introduced a worse regression -- reverted per user
+      // request (2026-09-08) back to a single publish. See plan doc for the retry attempt and
+      // the race-condition follow-up bug it caused, both abandoned.
+
+      // Marker.DELETE can be silently dropped by Studio's marker store if sent only once
+      // (observed empirically, 2026-09-07 -- see plan doc Phase 0 notes); repeat it briefly.
+      function deleteOperatorViewMarkerSlotId(markerId) {
+        const deleteMsg = {
+          header: { frame_id: OPERATOR_VIEW_MARKER_FRAME },
+          ns: "operator_view_marker",
+          id: markerId,
+          action: 2, // DELETE
+        };
+        let attempts = 0;
+        const timer = setInterval(() => {
+          publishOperatorViewMarkerMsg(deleteMsg);
+          attempts += 1;
+          if (attempts >= 8) clearInterval(timer);
+        }, 200);
+      }
+
+      // No heartbeat (removed 2026-09-08 user feedback) -- every marker, including the newest,
+      // now just fades on its own via `lifetime` once events stop arriving. Marker ids are tied
+      // to the visual SLOT (700=nearest/newest .. 702=farthest/oldest), not to a particular
+      // event -- when an event ages into an older slot its content is simply republished
+      // (ADD == MODIFY for an existing id) at that slot's id and position, so nothing needs
+      // deleting in steady state; clearAllOperatorViewMarkerSlots (below) is only for an
+      // explicit "hide everything right now" (Operator mode exit).
+      function operatorViewMarkerLifetimeMsFor(slotIndex) {
+        return slotIndex === 0 ? 5000 : 2000;
+      }
+
+      // 2026-09-08 bug found via live testing: the JS-side slot array had no notion of a slot's
+      // content having already visually expired in Studio (each marker fades on its own via its
+      // `lifetime`, independent of this array) -- so an old event that had long since faded from
+      // view could still get shoved into a deeper slot and *republished* the next time any new
+      // event arrived, making it reappear for another `lifetime` window. Fix: stamp each slot
+      // with the wall-clock time it's due to expire, and drop (don't carry forward/republish)
+      // anything already past that when reshuffling.
+      function publishOperatorViewMarker(evt, tipForcesN) {
+        const kind = String(evt?.kind || "").trim();
+        if (!operatorMainViewMarkerSettings?.isEnabled(kind)) return;
+
+        const now = performance.now();
+        const stillAlive = operatorViewMarkerState.slots.filter((s) => s && s.expiresAtMs > now);
+        const nextContent = [{ evt, tipForcesN }, ...stillAlive].slice(0, OPERATOR_VIEW_MARKER_MAX_SLOTS);
+        const offset = operatorMainViewMarkerSettings?.getOffset() || OPERATOR_VIEW_MARKER_DEFAULT_OFFSET;
+        const stackSpacing = operatorMainViewMarkerSettings?.getStackSpacing() ?? OPERATOR_VIEW_MARKER_DEFAULT_STACK_SPACING;
+
+        const nextSlots = new Array(OPERATOR_VIEW_MARKER_MAX_SLOTS).fill(null);
+        for (let i = 0; i < nextContent.length; i++) {
+          const markerId = 700 + i;
+          const msg = buildOperatorViewMarker(nextContent[i].evt, nextContent[i].tipForcesN, i, markerId, offset, stackSpacing);
+          nextSlots[i] = {
+            evt: nextContent[i].evt,
+            tipForcesN: nextContent[i].tipForcesN,
+            markerId,
+            msg,
+            expiresAtMs: now + operatorViewMarkerLifetimeMsFor(i),
+          };
+          publishOperatorViewMarkerMsg(msg);
+        }
+        operatorViewMarkerState.slots = nextSlots;
+      }
+
+      // Lets the offset inputs (Phase 5) preview instantly against whatever's currently shown,
+      // instead of only taking effect on the next real event.
+      function republishOperatorViewMarkerSlotsWithLayout({ offset, stackSpacing }) {
+        for (let i = 0; i < OPERATOR_VIEW_MARKER_MAX_SLOTS; i++) {
+          const slot = operatorViewMarkerState.slots[i];
+          if (!slot) continue;
+          const msg = buildOperatorViewMarker(slot.evt, slot.tipForcesN, i, slot.markerId, offset, stackSpacing);
+          slot.msg = msg;
+          publishOperatorViewMarkerMsg(msg);
+        }
+      }
+
+      function clearAllOperatorViewMarkerSlots() {
+        for (let i = 0; i < OPERATOR_VIEW_MARKER_MAX_SLOTS; i++) {
+          if (operatorViewMarkerState.slots[i]) {
+            deleteOperatorViewMarkerSlotId(700 + i);
+          }
+        }
+        operatorViewMarkerState.slots = new Array(OPERATOR_VIEW_MARKER_MAX_SLOTS).fill(null);
       }
 
       function sampleTimeline(telemetry, nowMs) {
@@ -1430,6 +1775,7 @@
         }
         m.tfEdges = src.tfEdges;
         m.frameAliasCache = src.frameAliasCache;
+        m.frameLeafIndexSource = src;
       }
 
       function getFrameLeafName(frame) {
@@ -1437,6 +1783,38 @@
         if (!text) return "";
         const parts = text.split(/[/:]/).filter(Boolean);
         return parts.length ? parts[parts.length - 1] : text;
+      }
+
+      // 2026-09-09 perf fix: a real Chrome Performance recording (with the TF subscribe
+      // throttle_rate temporarily cranked way down as an A/B test, see ensureSourceSubscriptions'
+      // comment) isolated resolveChildFrameAlias at 53.1% self-time of the frozen window once the
+      // JSON.parse-volume cost from the TF stream itself was no longer dominant. Root cause: this
+      // function's own per-alias cache (frameAliasCache) is entirely cleared on every TF
+      // structural change (onTfMessage's structureChanged), and its cache-miss fallback rescans
+      // *every* TF edge with getFrameLeafName() for *each* queried frame -- with DG5F's 124 taxel
+      // frames each needing alias resolution against ~150+ edges, that's on the order of tens of
+      // thousands of string-split calls per cache clear. Building a leaf-name index once per
+      // structural change (O(edges)) instead of once per *queried frame* per structural change
+      // (O(edges * frames)) removes the multiplier entirely without touching cache semantics.
+      function getFrameLeafIndex(src) {
+        if (src.frameLeafIndex) {
+          return src.frameLeafIndex;
+        }
+        const index = new Map();
+        const ambiguous = new Set();
+        for (const key of src.tfEdges.keys()) {
+          const keyLeaf = getFrameLeafName(key);
+          if (!index.has(keyLeaf)) {
+            index.set(keyLeaf, key);
+          } else if (index.get(keyLeaf) !== key) {
+            ambiguous.add(keyLeaf);
+          }
+        }
+        for (const leaf of ambiguous) {
+          index.set(leaf, "");
+        }
+        src.frameLeafIndex = index;
+        return index;
       }
 
       function resolveChildFrameAlias(frame) {
@@ -1450,22 +1828,31 @@
           return m.frameAliasCache.get(clean);
         }
         const leaf = getFrameLeafName(clean);
-        let match = "";
-        for (const key of m.tfEdges.keys()) {
-          const keyLeaf = getFrameLeafName(key);
-          if (keyLeaf !== leaf) continue;
-          if (!match) {
-            match = key;
-          } else if (match !== key) {
-            m.frameAliasCache.set(clean, "");
-            return "";
-          }
-        }
+        const index = getFrameLeafIndex(m.frameLeafIndexSource || getActiveUrdfSource());
+        const match = index.has(leaf) ? index.get(leaf) : "";
         m.frameAliasCache.set(clean, match || "");
         return match || "";
       }
 
+      // 2026-09-08 perf fix, step 3 (same real-profile evidence, still the #1 self-time entry
+      // after steps 1-2): this rebuilds childSet/parentSet/childrenByParent from every TF edge
+      // on every call regardless of whether anything changed -- called unconditionally at the
+      // top of renderUrdfMesh, once per rAF tick. Purely a function of the TF edge content +
+      // these three inputs, so cache on the same tfVersion signal used above.
+      let lastSelectFixedFrameKey = null;
+      let lastSelectFixedFrameResult = null;
       function selectFixedFrame(activeSource, payloadFixedFrame) {
+        const cacheKey = `${activeSource?.name}|${activeSource?.tfVersion || 0}|${payloadFixedFrame}|${state.uiMode}`;
+        if (cacheKey === lastSelectFixedFrameKey) {
+          return lastSelectFixedFrameResult;
+        }
+        const result = selectFixedFrameUncached(activeSource, payloadFixedFrame);
+        lastSelectFixedFrameKey = cacheKey;
+        lastSelectFixedFrameResult = result;
+        return result;
+      }
+
+      function selectFixedFrameUncached(activeSource, payloadFixedFrame) {
         const m = state.urdfMesh;
         const payloadFixed = normalizeFrameId(payloadFixedFrame || "");
         const childSet = new Set(m.tfEdges.keys());
@@ -1881,11 +2268,28 @@
         return forceColorCore(norm);
       }
 
+      // Real-GPU Chrome Performance recording (2026-09-09) isolated the actual "2s/1s freeze"
+      // window and found resizeCanvas() alone at 69.7% self-time of that window -- despite its
+      // body being trivial arithmetic. The cost is getBoundingClientRect() forcing a synchronous
+      // layout flush: resizeCanvas() runs as the very first statement of every render() rAF tick,
+      // so it's the first layout *read* after whatever DOM/style writes happened elsewhere that
+      // frame (Operator alert cards, three.js scene/style touches, etc.), and pays for flushing
+      // all of that pending layout work. A ResizeObserver callback (fires only on an actual size
+      // change, off the render loop's critical path) replaces the per-frame poll entirely --
+      // resizeCanvas() itself now only ever reads a cached {w,h}, no DOM access at all.
+      let cachedCanvasCssSize = { width: 0, height: 0 };
+      new ResizeObserver((entries) => {
+        const entry = entries[0];
+        const box = entry.contentBoxSize?.[0];
+        cachedCanvasCssSize = box
+          ? { width: box.inlineSize, height: box.blockSize }
+          : { width: entry.contentRect.width, height: entry.contentRect.height };
+      }).observe(canvas);
+
       function resizeCanvas() {
         const dpr = Math.max(1, window.devicePixelRatio || 1);
-        const rect = canvas.getBoundingClientRect();
-        const w = Math.max(1, Math.floor(rect.width * dpr));
-        const h = Math.max(1, Math.floor(rect.height * dpr));
+        const w = Math.max(1, Math.floor(cachedCanvasCssSize.width * dpr));
+        const h = Math.max(1, Math.floor(cachedCanvasCssSize.height * dpr));
         if (canvas.width !== w || canvas.height !== h) {
           canvas.width = w;
           canvas.height = h;
@@ -1974,6 +2378,12 @@
       }
 
       function collectEnabledModuleIdsFromUi() {
+        // Operator mode reads from its own independent module-select widget instead of
+        // Admin's state.showModules -- see operator_module_select.js for why these must
+        // stay separate (Admin's checkboxes also gate a shared backend node parameter).
+        if (appEl.classList.contains("operator-active") && operatorModuleSelect) {
+          return operatorModuleSelect.getEnabledModuleIds();
+        }
         const out = new Set();
         for (const mod of DG5F_MODULES) {
           if (state.showModules[mod] !== false) {
@@ -2088,11 +2498,25 @@
           return;
         }
         subscribeRosTopic(topic, 0, "std_msgs/msg/String");
+        // Direct subscription for Operator mode -- web_state.meta.grasp_event alone can
+        // silently drop back-to-back events (see operator_status_bar.js's header comment).
+        subscribeRosTopic("/atag/grasp_event", 0, "std_msgs/msg/String");
         // live_module_data is subscribed on the dedicated taxelViewerRosbridgeClient connection
         // instead (see its creation below) -- not here on the /tf-heavy main connection.
         for (const src of Object.values(state.urdfSources)) {
           subscribeRosTopic(src.robotDescriptionTopic, 0, "std_msgs/msg/String");
-          subscribeRosTopic(src.tfTopic, 25, "tf2_msgs/msg/TFMessage");
+          // 2026-09-09: a live rosbridge WS capture (Playwright framereceived listener) found
+          // this topic delivering the full DG5F hand+arm TF tree (all links, not a diff) at
+          // ~13Hz averaging ~41KB/message (~550KB/s) -- a real Chrome Performance recording (not
+          // headless/SwiftShader, see project_dg5f_sidecar_unguarded_renderer_resize_perf_bug.md)
+          // isolated ws.onmessage's own JSON.parse cost at 46.7% of all recorded main-thread self
+          // time, i.e. this stream, not any render()-loop code, is now the dominant "2s/1s freeze"
+          // contributor (resizeCanvas's own unrelated forced-layout bug was fixed separately the
+          // same day and no longer appears in profiles). throttle_rate asks rosbridge itself to
+          // downsample server-side before it ever reaches the browser -- 100ms/10Hz is still
+          // smooth for a 3D visualization (no motion-control loop depends on this) and roughly
+          // halves the parse/dispatch load with zero visual cost.
+          subscribeRosTopic(src.tfTopic, 100, "tf2_msgs/msg/TFMessage");
           subscribeRosTopic(src.tfStaticTopic, 0, "tf2_msgs/msg/TFMessage");
           state.sourceByService.set(src.robotDescriptionService, src.name);
         }
@@ -2154,6 +2578,7 @@
         src.robotRootLink = parseUrdfRootLink(data);
         src.robotDescriptionVersion += 1;
         src.frameAliasCache.clear();
+        src.frameLeafIndex = null;
       }
 
       function onTfMessage(msg, isStatic, sourceName) {
@@ -2187,7 +2612,9 @@
         }
         if (structureChanged) {
           src.frameAliasCache.clear();
+          src.frameLeafIndex = null;
         }
+        src.tfVersion = (src.tfVersion || 0) + 1;
       }
 
       async function buildUrdfRobotFromDescription() {
@@ -2311,9 +2738,23 @@
         return out;
       }
 
+      // 2026-09-08 perf fix, step 2 (same real-profile evidence as updateUrdfMarkers's guard
+      // above): this walks every robot link's full TF chain every rAF tick regardless of
+      // whether any TF actually arrived since the last frame -- the dominant remaining cost
+      // once the taxel-marker path was fixed. Unlike taxel data, link poses legitimately need
+      // to track TF whenever the robot is actually moving, so the guard keys off a version
+      // counter bumped by onTfMessage (see onTfMessage's `src.tfVersion++`) rather than always
+      // skipping -- idle (no new TF) correctly skips the walk, active motion still updates every
+      // frame TF changes.
       function updateRobotLinkTransforms(fixedFrame, allowLooseRootFallback = true) {
         const m = state.urdfMesh;
         if (!m.ready || !m.robotBuilt) return { total: 0, visibleCount: 0, missingCount: 0, fallbackVisibleCount: 0 };
+        const activeSrc = getActiveUrdfSource();
+        const guardKey = `${activeSrc.name}|${activeSrc.tfVersion || 0}|${fixedFrame}|${allowLooseRootFallback}`;
+        if (guardKey === m.lastLinkTransformsGuardKey) {
+          return m.lastTfStats || { total: m.linkGroups.size, visibleCount: 0, missingCount: 0, fallbackVisibleCount: 0 };
+        }
+        m.lastLinkTransformsGuardKey = guardKey;
         const parentFrames = new Set();
         for (const edge of m.tfEdges.values()) {
           if (edge.parent) parentFrames.add(normalizeFrameId(edge.parent));
@@ -2487,9 +2928,25 @@
       }
 
       const _arrowHsl = { h: 0, s: 0, l: 0 };
+      // 2026-09-08 perf fix (real Chrome Performance recording during an active freeze):
+      // renderUrdfMesh() runs every requestAnimationFrame tick (up to 60Hz) via render()'s
+      // rAF loop, and until now called this unconditionally every time -- redoing full TF
+      // resolution + coloring for every taxel point (124 for DG5F) even when nothing about the
+      // sensor data, module selection, or sensitivity had changed since the last frame. Bottom-up
+      // profile showed this call chain at 88% of total main-thread time. Everything this function
+      // reads besides `payload` itself is captured in `guardKey` below; skip the point loop
+      // entirely when neither has changed since the last call.
+      let lastMarkersPayload = null;
+      let lastMarkersGuardKey = null;
       function updateUrdfMarkers(payload) {
         const m = state.urdfMesh;
         if (!m.ready) return;
+        const guardKey = `${state.uiMode}|${m.lastHighlightSignature}|${operatorSensitivityLevel}`;
+        if (payload === lastMarkersPayload && guardKey === lastMarkersGuardKey) {
+          return;
+        }
+        lastMarkersPayload = payload;
+        lastMarkersGuardKey = guardKey;
         const points = (payload?.urdf?.points && Array.isArray(payload.urdf.points)) ? payload.urdf.points : [];
         const liveKeys = new Set();
         const xyRange = Math.max(1e-6, Number(payload?.meta?.xy_force_range) || 0.8);
@@ -2505,6 +2962,17 @@
           const key = `${p.module}:${p.sensor_index}`;
           liveKeys.add(key);
           const marker = ensureMarkerObject(key);
+
+          // Housing link color already respects m.activeModuleIds (see
+          // resolveLinkColorForSelection); the force/direction arrow marker did not, so an
+          // unselected module's arrow stayed visible even while its housing turned neutral.
+          // No-op for Admin mode: unselected-there means the data never arrived at all, so
+          // this Set already only contains modules actually present in the payload.
+          const markerModuleId = extractModuleIdFromName(p.frame_id);
+          if (markerModuleId && m.lastHighlightSignature != null && !m.activeModuleIds.has(markerModuleId)) {
+            marker.group.visible = false;
+            continue;
+          }
           marker.group.visible = true;
 
           let placedViaHousing = false;
@@ -2588,7 +3056,7 @@
             marker.sphere.scale.setScalar(1);
           }
 
-          const norm = Math.max(0, Math.min(1, Number(p.norm) || 0));
+          const norm = operatorAdjustNorm(Math.max(0, Math.min(1, Number(p.norm) || 0)));
           const rgb = forceColorRgb(norm);
           marker.sphere.material.color.setRGB(rgb.r / 255, rgb.g / 255, rgb.b / 255);
 
@@ -2736,6 +3204,34 @@
           }
         }
 
+        if (msg.topic === "/atag/grasp_event" && msg.msg) {
+          const data = msg.msg.data;
+          if (typeof data === "string") {
+            try {
+              const evt = JSON.parse(data);
+              operatorStatusBar?.onGraspEvent(evt);
+              // Snapshot the current force telemetry alongside the event -- grasp_event's own
+              // note port can't carry a real number (see operator_alert_cards.js header), but
+              // state.payload already has live per-taxel force independent of this topic.
+              operatorAlertCards?.onGraspEvent(evt, computeTipForcesN(state.payload));
+              // Filmstrip capture is still Operator-only (the 3D canvas it snapshots could be
+              // mid-Grid-mode or not visible at all otherwise) and mirrors Graphs' own Live
+              // gating (taxelSessionPanel's pushLiveModuleData does the same self-check).
+              if (appEl.classList.contains("operator-active") && taxelSessionPanel?.isLive?.()) {
+                operatorFilmstrip?.onGraspEvent(evt, performance.now());
+              }
+              // 2026-09-08: Main-View marker publishing is no longer Operator-only -- its
+              // "Show Behavior Event" settings widget moved into the Admin screen (see
+              // #operatorMainViewMarkersHost's new home in #statsRow), so a marker should
+              // publish whenever its kind is checked there regardless of which mode is showing.
+              publishOperatorViewMarker(evt, computeTipForcesN(state.payload));
+            } catch (err) {
+              console.warn("[xela-sidecar] failed to parse /atag/grasp_event:", err);
+            }
+          }
+          return;
+        }
+
         if (msg.topic === topic && msg.msg) {
           const data = msg.msg.data;
           if (typeof data !== "string") return;
@@ -2786,6 +3282,7 @@
           requestRobotDescriptionViaService("robot", true);
           updateModeButtons();
           updateVectorModeButton();
+          rosbridgeClient.advertiseTopic("/visual_markers", "visualization_msgs/msg/MarkerArray");
         },
         onCloseOpened: () => {
           state.pendingSwitch = false;
@@ -2859,6 +3356,153 @@
           })
         : null;
 
+      // Phase 8 "Graphs" toggle moves taxelSessionPanelHost's DOM node between here (its
+      // dev-mode home) and #operatorGraphHost -- remember where it started so it can always
+      // be put back (see setOperatorGraphsShown below and setOperatorMode's leave-Operator
+      // branch), rather than creating a second panel instance for Operator.
+      const taxelSessionPanelOriginalParent = taxelSessionPanelHost?.parentNode || null;
+      const taxelSessionPanelOriginalNextSibling = taxelSessionPanelHost?.nextSibling || null;
+      let operatorGraphsShown = false;
+      // Admin's own module-checklist selection, captured right before Operator forces it to
+      // {f1_dg5f_ft, f2_dg5f_ft}-only -- restored when Graphs is hidden again, so a dev's
+      // debug selection (e.g. f1_mid/f2_mid) survives a visit to Operator's graph view
+      // instead of being silently clobbered (same shared session-panel instance either way).
+      let savedModuleSelection = null;
+
+      function setModuleCheckboxSelection(names) {
+        const checkboxes = taxelSessionPanelHost?.querySelectorAll("[data-module-checkbox]");
+        if (!checkboxes || checkboxes.length === 0) return;
+        let anyChanged = false;
+        checkboxes.forEach((cb) => {
+          const shouldBeChecked = names.has(cb.value);
+          if (cb.checked !== shouldBeChecked) {
+            cb.checked = shouldBeChecked;
+            anyChanged = true;
+          }
+        });
+        if (anyChanged) {
+          checkboxes[0].dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      }
+
+      function setOperatorGraphsShown(show) {
+        operatorGraphsShown = show;
+        // 2026-09-08 layout change: the filmstrip now sits right below the Graph panel block,
+        // so it shows/hides together with it rather than always being visible.
+        document.getElementById("operatorFilmstripHost")?.style.setProperty("display", show ? "" : "none");
+        const graphHost = document.getElementById("operatorGraphHost");
+        if (!taxelSessionPanelHost || !graphHost) return;
+        if (show) {
+          graphHost.appendChild(taxelSessionPanelHost);
+          // The session panel's own checklist UI is hidden here (see index.html's
+          // op-graph-mode CSS) -- Operator's module selection (Phase 4's own widget,
+          // already driving the 3D view highlight) is the single source of truth for
+          // "what am I looking at" instead, kept in sync going forward by this same
+          // widget's onChange callback (see its createOperatorModuleSelect call).
+          savedModuleSelection = new Set(
+            Array.from(taxelSessionPanelHost.querySelectorAll("[data-module-checkbox]:checked")).map((cb) => cb.value),
+          );
+          setModuleCheckboxSelection(operatorModuleSelect.getEnabledModuleIds());
+        } else if (taxelSessionPanelOriginalParent) {
+          if (taxelSessionPanelOriginalNextSibling) {
+            taxelSessionPanelOriginalParent.insertBefore(taxelSessionPanelHost, taxelSessionPanelOriginalNextSibling);
+          } else {
+            taxelSessionPanelOriginalParent.appendChild(taxelSessionPanelHost);
+          }
+          if (savedModuleSelection) {
+            setModuleCheckboxSelection(savedModuleSelection);
+            savedModuleSelection = null;
+          }
+        }
+      }
+
+      const operatorStatusBarHost = document.getElementById("operatorStatusBarHost");
+      const operatorStatusBar = operatorStatusBarHost
+        ? createOperatorStatusBar({ container: operatorStatusBarHost })
+        : null;
+
+      const DG5F_OPERATOR_MODULE_GROUPS = [1, 2, 3, 4, 5]
+        .map((n) => ({
+          key: `f${n}`,
+          label: `F${n}`,
+          modules: [
+            { key: `f${n}_dg5f_ft`, label: "ft" },
+            { key: `f${n}_mid_uSPa22`, label: "mid" },
+            { key: `f${n}_prox_uSPa22`, label: "prox" },
+          ],
+        }))
+        .concat([{ key: "palm", label: "Palm", modules: [{ key: "palm_uSPa46", label: "uSPa46" }] }]);
+
+      const operatorModulesHost = document.getElementById("operatorModulesHost");
+      const operatorModuleSelect = operatorModulesHost
+        ? createOperatorModuleSelect({
+            container: operatorModulesHost,
+            groups: DG5F_OPERATOR_MODULE_GROUPS,
+            // Keep the reused graph panel's module checkboxes in sync live -- Operator's
+            // own module selection is the single source of truth for "what am I looking
+            // at" across both the 3D view and the graphs, not a separate hidden selection.
+            onChange: () => {
+              if (operatorGraphsShown) {
+                setModuleCheckboxSelection(operatorModuleSelect.getEnabledModuleIds());
+              }
+            },
+          })
+        : null;
+
+      // Sensitivity levels: 1 = no boost (identity), 2/3 = increasingly aggressive gamma
+      // lifting faint contact further up forceColorRgb()'s color range. Cycles 1->2->3->1.
+      const OPERATOR_SENSITIVITY_GAMMA = { 1: 1.0, 2: 0.45, 3: 0.22 };
+      let operatorSensitivityLevel = 1;
+      const operatorVizControlsHost = document.getElementById("operatorVizControlsHost");
+      const operatorVizControls = operatorVizControlsHost
+        ? createOperatorVizControls({
+            container: operatorVizControlsHost,
+            sensitivity: {
+              get: () => operatorSensitivityLevel,
+              cycle: () => {
+                operatorSensitivityLevel = (operatorSensitivityLevel % 3) + 1;
+              },
+            },
+            graphs: {
+              get: () => operatorGraphsShown,
+              toggle: () => setOperatorGraphsShown(!operatorGraphsShown),
+            },
+          })
+        : null;
+
+      const operatorAlertsHost = document.getElementById("operatorAlertsHost");
+      const operatorAlertCards = operatorAlertsHost
+        ? createOperatorAlertCards({ container: operatorAlertsHost })
+        : null;
+
+      const operatorMainViewMarkersHost = document.getElementById("operatorMainViewMarkersHost");
+      const operatorMainViewMarkerSettings = operatorMainViewMarkersHost
+        ? createOperatorMainViewMarkerSettings({
+            container: operatorMainViewMarkersHost,
+            onLayoutChange: republishOperatorViewMarkerSlotsWithLayout,
+          })
+        : null;
+
+      const operatorFilmstripHost = document.getElementById("operatorFilmstripHost");
+      const operatorFilmstrip = operatorFilmstripHost
+        ? createOperatorFilmstrip({
+            container: operatorFilmstripHost,
+            getCanvas: () => urdf3dLayer.querySelector("canvas"),
+          })
+        : null;
+
+      // Only applied in Operator mode -- Admin's own view is unaffected.
+      function operatorAdjustNorm(norm) {
+        if (!appEl.classList.contains("operator-active")) {
+          return norm;
+        }
+        const gamma = OPERATOR_SENSITIVITY_GAMMA[operatorSensitivityLevel] ?? 1.0;
+        if (gamma === 1.0) {
+          return norm;
+        }
+        return Math.pow(Math.max(0, Math.min(1, norm)), gamma);
+      }
+
       function connect(candidateIndex = 0) {
         rosbridgeClient.connect(candidateIndex);
         // The dedicated taxel-viewer connection (Session panel's service calls +
@@ -2921,6 +3565,58 @@
         requestModeSwitch(true);
       }
 
+      // Operator mode: reuses the same XelaModel 3D view/canvas as developer mode (see
+      // setUiMode above) but hides all developer-only controls (.dev-only) and shows the
+      // operator-only overlay containers (.operator-only) instead. Phase 2 skeleton only --
+      // the overlay hosts (#operatorStatusBarHost etc.) are populated in later phases.
+      let preOperatorUiMode = null;
+      let preOperatorSensorViewMode = null;
+      function setOperatorMode(enabled) {
+        if (enabled) {
+          preOperatorUiMode = state.uiMode;
+          if (state.uiMode !== "xela") {
+            setUiMode("xela");
+          }
+          // computeActiveModuleIds() falls back to "whatever modules currently have live
+          // points in the payload" whenever sensorViewMode isn't "all" (Admin's
+          // AllSensors/ActiveOnly toggle) -- that set can shift slightly tick to tick, which
+          // both flickers the arrow markers on/off and re-triggers a full mesh material
+          // rebuild each time (2026-09-06 user report). Force "all" here so Operator's own
+          // module selection (operatorModuleSelect) is always the sole, stable source,
+          // regardless of whatever Admin last had ActiveOnly set to.
+          preOperatorSensorViewMode = state.sensorViewMode;
+          state.sensorViewMode = "all";
+          appEl.classList.add("operator-active");
+          operatorBtn.classList.add("active");
+          operatorBtn.textContent = "Admin";
+          operatorBtn.title = "개발자(Admin) 화면으로 돌아가기";
+          gridBtn.classList.remove("active");
+          xelaBtn.classList.remove("active");
+          robotBtn.classList.remove("active");
+        } else {
+          appEl.classList.remove("operator-active");
+          operatorBtn.classList.remove("active");
+          operatorBtn.textContent = "Operator";
+          operatorBtn.title = "운영자용 요약 화면 (raw 데이터/디버그 컨트롤 없음)";
+          clearAllOperatorViewMarkerSlots();
+          if (preOperatorSensorViewMode !== null) {
+            state.sensorViewMode = preOperatorSensorViewMode;
+            preOperatorSensorViewMode = null;
+          }
+          // Leaving Operator always moves the session panel back to its dev-mode home,
+          // regardless of whether "Graphs" was toggled on -- otherwise Admin's own view of
+          // it would appear to have vanished (see setOperatorGraphsShown's header comment).
+          setOperatorGraphsShown(false);
+          operatorVizControls?.refresh();
+          if (preOperatorUiMode && preOperatorUiMode !== "xela") {
+            setUiMode(preOperatorUiMode);
+          } else {
+            updateModeButtons();
+          }
+          preOperatorUiMode = null;
+        }
+      }
+
       function toggleGridVectorMode() {
         if (!vectorBtn) {
           return;
@@ -2940,7 +3636,16 @@
         ctx.fillText(text, canvas.width / 2, canvas.height / 2);
       }
 
+      // 2026-09-08 perf fix, step 4 (same class of bug as updateUrdfMarkers/updateRobotLinkTransforms/
+      // selectFixedFrame above, found because the user reported the freeze also happens in Grid
+      // mode, which doesn't touch any of those -- this is called unconditionally every rAF tick
+      // too, redrawing the full 2D canvas from scratch even when `payload` hasn't changed).
+      let lastDrawnGridPayload = null;
       function drawGrid(payload) {
+        if (payload === lastDrawnGridPayload) {
+          return;
+        }
+        lastDrawnGridPayload = payload;
         drawGridMode({
           payload,
           ctx,
@@ -3330,6 +4035,18 @@
           ingestAnalysisEvents(state.payload, telemetry, timelineNowMs);
           drawSparkline(timelineNowMs);
 
+          // Operator status bar's health (connection/staleness) signal only -- its
+          // phase/outcome/tally state comes from the direct /atag/grasp_event subscription's
+          // onGraspEvent dispatch above, not from web_state.
+          operatorStatusBar?.updateHealth({
+            ageMs: ageMsRaw,
+            staleMs: 3000,
+            rosbridgeConnected: statusDot.classList.contains("ok"),
+          });
+          if (appEl.classList.contains("operator-active") && taxelSessionPanel?.isLive?.()) {
+            operatorFilmstrip?.tick(nowMs);
+          }
+
           const currentLine =
             `${Number.isFinite(telemetry?.tipF1Norm) ? ` tipF1=${telemetry.tipF1Norm.toFixed(3)}` : ""}` +
             `${Number.isFinite(telemetry?.tipF2Norm) ? ` tipF2=${telemetry.tipF2Norm.toFixed(3)}` : ""}` +
@@ -3446,6 +4163,9 @@
       gridBtn.addEventListener("click", () => setUiMode("grid"));
       xelaBtn.addEventListener("click", () => setUiMode("xela"));
       robotBtn.addEventListener("click", () => setUiMode("robot"));
+      operatorBtn?.addEventListener("click", () =>
+        setOperatorMode(!appEl.classList.contains("operator-active")),
+      );
       vectorBtn?.addEventListener("click", () => toggleGridVectorMode());
       followBtn?.addEventListener("click", () => {
         if (state.uiMode !== "robot") {
