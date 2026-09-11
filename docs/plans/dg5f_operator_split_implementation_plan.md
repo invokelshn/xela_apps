@@ -369,16 +369,40 @@ Admin(`xela_taxel_sidecar_dg5f/web/taxel_sidecar/index.html`)의 `setOperatorMod
 
 ---
 
-## Phase 4 — 성능 검증 (분리 효과 확인)
+## Phase 4 — 성능 검증 (분리 효과 확인) — ✅ 완료(결론 수용, 2026-09-11)
+
+**최종 결론 (사용자 확인)**: 이번 분리 프로젝트의 목적은 "체감 가능한 성능 개선 수치 확보"가 아니라 **Admin/Operator 역할을 명확히 분리해서, 운영자 입장의 데모/센서 모니터링 용도에 집중된 화면을 제공하는 것**으로 재확인됨. 실측 결과 자체는 (a) "2~3초마다 1초 멈춤" 패턴이 과거 세션에서 이미 근본수정되어 이번엔 재현 안 됨, (b) 이번 그랩 사이클이 `SwitchController` 실패로 완료되지 못해 최악 시나리오 재측정이 안 됨 — 두 가지 이유로 분리 전/후 비교 기준점이 성립하지 않았지만, 목적이 성능이 아니므로 이 결과를 그대로 수용하고 Phase 4를 종료함. `SwitchController` 실패 건은 성능 검증과 무관한 별개의 잠재 버그로, 이번 프로젝트 범위 밖에 남겨둠(다음 세션에서 필요 시 조사).
 
 **작업**
 - Chrome Performance 탭으로 (a) 기존 dg5f Operator 모드, (b) 신규 `xela_taxel_operator_dg5f` 단독 실행을 동일 시나리오(동일 로봇 동작 재생)로 각각 1~2분 프로파일링
 
 **검증 체크리스트**
-- [ ] 프레임 드랍/멈춤 빈도 비교 (기존에 보고된 "2~3초마다 1초 멈춤" 패턴 재현 여부)
-- [ ] 메인 스레드 self-time 상위 함수 비교 — Admin 로직이 빠지면서 실제로 상위권에서 사라졌는지 확인
-- [ ] 장시간(30분 이상) 연속 구동 시 메모리/캐시 누수 없는지 확인 (기존 rosbridge 연결 누수 이슈 이력 있음 — 신규 코어에서 재발하지 않는지 별도 확인)
-- [ ] 개선 수치를 사용자에게 보고하고, 목표(체감 가능한 멈춤 해소) 달성 여부 합의
+- [x] 프레임 드랍/멈춤 빈도 비교 (기존에 보고된 "2~3초마다 1초 멈춤" 패턴 재현 여부) — **재현 안 됨, 양쪽 동일 수준.** 아래 2026-09-11 실측 참고: Admin(8765)/Operator(8766) 양쪽 다 110초 캡처에서 long task(≥50ms) 543개/542개로 거의 동일, ≥900ms(체감 "1초 멈춤"급) long task는 **양쪽 다 0개**. 최대 long task 길이도 Admin 277.0ms vs Operator 290.0ms로 사실상 동일.
+- [x] 메인 스레드 self-time 상위 함수 비교 — Admin 로직이 빠지면서 실제로 상위권에서 사라졌는지 확인 — 상위 항목은 양쪽 다 `(program)`(Chrome 내부/GPU 파이프라인, 98.3~98.4%)이 압도적이고, JS 레벨에서는 `ws.onmessage`(rosbridge 공용, 116.6ms vs 122.0ms 거의 동일)가 1위. Admin 전용 함수(`onTfMessage`, `handleRosbridgeMessage`, `selectFixedFrameUncached`, `normalizeFrameId`, `drawSparkline` 등, grid.js 계열)는 Admin 프로파일에만 존재하고 Operator에는 그 대신 `xela_taxel_viz_core`/`xela_atag_taxel_viewer` 전용 함수(`applyTfMessage`, `renderFromLatestPayload`, `onMessageParsed`, `updateUrdfMarkers`/`resolveFrameToFixed` @ `taxel_marker_renderer.js`)가 나타나 **코드 로드 자체는 분리가 확인**되지만, self-time 절대값(각 10~30ms대, 전체의 0.03% 이하)이 너무 작아 총합 self-time(79534.4ms vs 79622.2ms, 차이 0.1%)에는 유의미한 영향 없음.
+- [x] 장시간(30분 이상) 연속 구동 시 메모리/캐시 누수 없는지 확인 — **시간 제약으로 30분 대신 110초로 축소**(사용자 승인된 축소 옵션 사용). `performance.memory.usedJSHeapSize` 캡처 시작/종료 비교: Admin 33.10MB→33.10MB(변화 없음), Operator 64.00MB→64.00MB(변화 없음, 최초 로드 시 무거운 3D 에셋/모듈 그래프 UI 때문에 시작치 자체는 Operator가 더 높음). 이 짧은 창에서는 두 쪽 다 누수 징후 없음. 30분 이상 장시간 구동 재현은 이번 세션 범위 밖으로 남김(아래 "남은 이슈" 참고).
+- [x] 개선 수치를 사용자에게 보고하고, 목표(체감 가능한 멈춤 해소) 달성 여부 합의 — 아래 실측 결과 기반 결론: 이번 시나리오에서는 **Admin/Operator 분리가 CPU/long-task 수준에서 측정 가능한 개선을 만들지 못함**(둘 다 거의 동일). 단, 이는 "분리가 실패했다"는 뜻이 아니라 (a) 이번 grasp 사이클이 컨트롤러 스위치 실패로 매번 중단되어 실제 파지/임피던스 프리즈 이벤트가 발생하지 않았고, (b) self-time 상위가 애초에 JS(Admin 로직 포함)가 아니라 Chrome 내부 렌더 파이프라인(`(program)` 98%+)이라 Admin 로직 자체의 절대 비중이 애초에 작았기 때문. 원래 사용자가 보고한 "2~3초마다 1초 멈춤"은 이번 실측에서 Admin/Operator 어느 쪽에서도 재현되지 않았음(≥900ms 사건 0건) — 따라서 "분리로 그 멈춤이 해소됐는지"는 이번 실측만으로는 확인 불가(애초에 재현이 안 됐으므로 Before/After 비교가 성립하지 않음).
+
+### 2026-09-11 Phase 4 실측 (Admin 8765 vs Operator 8766, 동시 프로파일링)
+
+**시나리오**: `moveit_pro run --headless -c ur7e_xdg5f_atag_right_sim_dev`로 Admin(8765/9090/9091)+Operator(8766/9092) 5개 포트 동시 기동. `/execute_objective`(`moveit_studio_sdk_msgs/srv/ExecuteObjective`) 서비스로 `DG5F_Demo1_Success_PickPlace_ObjectGraspController` objective를 반복 트리거(각 사이클 실제 팔 동작/경로계획 발생, ~20초/사이클)하며 그 동안 Playwright(headless, `--enable-gpu --ignore-gpu-blocklist`)로 8765와 8766을 **같은 브라우저 프로세스 안에서 동시에 두 탭으로 열고**, 각 탭에 CDP `Profiler`(Sampling, interval 200us) + `PerformanceObserver('longtask')`를 걸어 110초간 동시 캡처.
+
+**objective 트리거 방법(재사용 가능)**:
+```
+docker exec -e CYCLONEDDS_URI=file:///home/invokelee/.ros/cyclonedds.xml moveit_pro-agent_bridge-1 bash -lc \
+  "source /opt/overlay_ws/install/setup.bash; ros2 service call /execute_objective moveit_studio_sdk_msgs/srv/ExecuteObjective \"{objective_name: 'DG5F_Demo1_Success_PickPlace_ObjectGraspController'}\""
+```
+(objective_name은 XML 파일명이 아니라 `main_tree_to_execute` 속성값이어야 함 — 파일명 그대로 넣으면 "Can't find a tree with name" 오류)
+
+**알려진 제약(이번 세션에서 발견, 코드 미수정)**: `ur7e_xdg5f_atag_right_sim_dev`(dev 변형) 환경에서 pick-place objective 7사이클 전부 `SwitchController failed: enable_impedance=true effort=[dg5f_right_effort_controller] position=[dg5f_right_controller]`로 실패 — effort 기반 그립 컨트롤러 전환이 이 config에서 동작하지 않아 실제 파지/임피던스 프리즈/grasp_event까지는 도달하지 못하고 접근 경로 재생만 반복됨. 원인 미조사(이번 세션 범위 밖, Phase 4는 순수 측정이라 코드/config 수정 금지 원칙 준수). 따라서 이번 측정은 "팔 접근 모션 반복 재생" 부하이며, "그랩 완료+타젤 접촉 이벤트가 빈번한" 최악 시나리오는 아직 실측하지 못함.
+
+**결과**: 위 체크리스트에 병기. 요약하면 Admin/Operator 두 프로파일이 long task 개수(543/542), 최대 long task 길이(277.0/290.0ms), 총 self-time(79534.4/79622.2ms), 힙 크기(변화 없음) 전부 오차범위 내에서 동일. 콘솔 에러 0건 양쪽 다.
+
+**baseline 무수정 확인**: `git status --porcelain`(최상위 repo), `git -C src/xela_dependencies/xela_apps status --porcelain`(submodule) 전부 출력 없음(clean) — `xela_taxel_sidecar_dg5f`/`ur7e_xdg5f_atag_right_common`/`ur7e_xdg5f_atag_right_sim`/`xela_atag_taxel_viewer` 무수정 확인.
+
+**남은 이슈**:
+1. `ObjectGraspController`/`ObjectGrasp` 두 변형 모두 이 `_dev` sim에서 SwitchController 실패 — 실제 파지 완료 + grasp_event 빈발 시나리오는 이 문제를 해결(별도 세션, 코드/config 조사 필요)한 뒤에 재측정 필요. 이번 실측은 "팔 모션 반복" 부하로 제한됨.
+2. 30분 이상 장시간 구동 누수 검증은 110초로 축소해 수행 — 장시간 검증은 미완료.
+3. "2~3초마다 1초 멈춤" 패턴이 이번 실측에서 Admin 쪽에서도 재현되지 않아(≥900ms 사건 0건), 분리 전/후 비교의 기준점(before) 자체가 이번 세션에서 성립하지 않음 — 과거 수정(`resizeCanvas`/`resolveChildFrameAlias` 등, 2026-09-09 세션에서 이미 근본수정 완료)이 반영된 상태라 애초에 재현되지 않는 것으로 보이며, 별개로 Admin/Operator 분리 자체의 효과를 이 패턴 기준으로는 검증할 수 없음.
 
 ### 사전 실측: Admin 모드(8765)에서 Operator 전용 코드 상시 오버헤드 (2026-09-11)
 
@@ -395,16 +419,16 @@ Admin(`xela_taxel_sidecar_dg5f/web/taxel_sidecar/index.html`)의 `setOperatorMod
 
 ---
 
-## Phase 5 — 정리 및 문서화
+## Phase 5 — 정리 및 문서화 — ✅ 완료 (2026-09-11)
 
 **작업**
-- 신규 패키지 2개의 README 작성 (역할, 포트, 실행법, dg5f와의 관계)
-- 워크스페이스 최상위 문서에 "dg5f 운영자 화면은 이제 `xela_taxel_operator_dg5f`(포트 8766)로 접속" 안내 추가
+- 신규 패키지 2개의 README 작성 (역할, 포트, 실행법, dg5f와의 관계) — `xela_taxel_viz_core/README.md`, `xela_taxel_operator_dg5f/README.md` 작성 완료
+- 워크스페이스 최상위 문서에 "dg5f 운영자 화면은 이제 `xela_taxel_operator_dg5f`(포트 8766)로 접속" 안내 추가 — 최상위 repo `README.md`에 `ur7e_xdg5f_atag_right_sim`/`_sim_dev` 패키지 설명, 실행 예시, Notes 섹션에 8765/8766 URL 안내 추가 완료
 
 **검증 체크리스트**
-- [ ] 운영자(실사용자)에게 신규 URL 안내 및 실제 접속 테스트 완료
-- [ ] 기존 dg5f Operator 모드는 그대로 남겨둘지, 이후 다른 세션에서 제거 논의할지 결정 (이번 범위에서는 dg5f 무수정이 원칙이므로 유지)
-- [ ] ah/2f 확장 여부는 별도 논의로 이월 기록
+- [x] 운영자(실사용자)에게 신규 URL 안내 및 실제 접속 테스트 완료 — 사용자가 이번 프로젝트 진행 중 `http://localhost:8766`에 직접 여러 차례 접속해 기능/레이아웃을 실사용 테스트하고 피드백을 줬음(레이아웃 조정, 그래프 섹션 정리 등 다수 라운드) — 실질적으로 이미 충분히 검증됨
+- [x] 기존 dg5f Operator 모드는 그대로 남겨둘지, 이후 다른 세션에서 제거 논의할지 결정 — **유지하기로 확정**. `xela_taxel_sidecar_dg5f`는 무수정 원칙이 전 Phase에 걸쳐 유지됐고, 제거 논의는 이번 프로젝트 범위 밖(향후 필요 시 별도 논의)
+- [x] ah/2f 확장 여부는 별도 논의로 이월 기록 — 이번 프로젝트는 dg5f 전용으로 완결. `xela_taxel_sidecar_ah`/`xela_taxel_sidecar_2f`에 동일 패턴(코어 추출 + 운영자 전용 페이지)을 적용할지는 별도 세션에서 사용자 요청 시 논의(이번 범위 아님)
 
 ### `op-separate` → `main` merge 절차 (2026-09-09 확정)
 
@@ -473,3 +497,58 @@ Phase 0~3.5(Admin/Operator 동시 기동+기능 이식+상태바/레이아웃 �
 **환경 노트**: 검증 중 `moveit_pro run`을 `nohup ... &`로 백그라운드 실행했더니 "MoveIt Pro shutdown initiated..."로 즉시 종료되는 현상 발견 — Bash 툴의 `run_in_background`(foreground 프로세스를 별도로 관리)로 재실행하니 안정적으로 유지됨. 이후 세션에서도 `nohup &` 대신 `run_in_background`를 쓸 것.
 
 **남은 이슈**: 없음(요구사항 3건 모두 실측 검증 완료). `~/.config/moveit_pro/moveit_pro_config.yaml`의 `STUDIO_CONFIG_PACKAGE`는 이번 세션 시작 전부터 `ur7e_xdg5f_atag_right_sim_dev`로 설정되어 있었고 이번 작업에서 변경하지 않았음(Admin+Operator 동시 기동용 Phase 3.5 config로 보이며, baseline 단일 앱 config `ur7e_xdg5f_atag_right_sim`과는 별개 — 필요 시 사용자 확인 요망).
+
+---
+
+## Phase 6 — 운영자 화면 UX 개선 (데모/모니터링 목적, 2026-09-11 계획 수립) — 미착수, Phase 4/5 마무리 후 진행
+
+**배경**: 분리 목적 자체("Admin/Operator 역할 명확 분리")는 Phase 0~4로 달성됨. Phase 6은 그 위에 사용자(운영 전문가 관점)가 요청한 신규 기능 3건 — 이번 분리 프로젝트의 원 스코프 밖이라 별도 Phase로 분리해서 진행. 대상 파일은 전부 `xela_taxel_operator_dg5f/web/index.html`(및 필요시 이 패키지 안 CSS/JS)뿐 — `xela_taxel_sidecar_dg5f`/baseline 무수정 원칙은 계속 유지.
+
+### 6-1. Kiosk/Lock 모드
+
+- 상태바 근처에 `🔒 Lock` / `🔓 Unlock` 토글 버튼 추가
+- 잠금 시: 모듈 체크박스, Viz Controls(Sensitivity/Graphs), 세션 패널의 Capture/Load 버튼에 `pointer-events:none` + 반투명 오버레이
+- 3D 뷰 카메라 조작(회전/줌/팬)도 잠금 대상에 포함(데모 중 실수로 화면이 돌아가는 것 방지)
+- 잠금 상태는 `localStorage`에 저장해 새로고침 후에도 유지
+- 해제는 버튼 재클릭만으로 충분(비밀번호 등 별도 인증 불필요)
+
+**검증**: Playwright로 잠금 전/후 각 컨트롤 클릭 시도 → 잠금 상태에서 상태 변화 없음(모듈 선택 안 바뀜 등) 확인, 카메라 드래그도 무반응 확인, 새로고침 후 잠금 유지 확인.
+
+### 6-2. 세션/데모 리셋 버튼
+
+- 상태바 또는 세션 패널 근처에 "Reset Demo" 버튼 추가
+- 클릭 시: 필름스트립 히스토리 비우기, 알림카드 비우기, 그래프 버퍼 초기화(캡처 중이 아닐 때만)
+- "TODAY 성공/실패" 카운터는 리셋 대상에서 제외(하루 통계는 유지) — 확인 필요 시 재논의
+- rosbridge 연결/구독 자체는 건드리지 않음(끊었다 재연결하는 방식 금지 — 불필요한 위험)
+
+**검증**: 필름스트립/알림카드에 데이터가 쌓인 상태에서 Reset 클릭 → 즉시 빈 상태로 돌아가는지 확인, 이후 새 이벤트가 정상적으로 다시 쌓이는지 확인(리셋이 구독 자체를 깨지 않았는지).
+
+### 6-3. 임계값 기반 알림 강화 + 이벤트 선택 강조 (대화로 확정된 상세 사양)
+
+**감시 지표**: `force_total` / `shear_mag_avg` / `shear_normal_ratio` 전부 대상.
+
+**적용 범위**: 전체 taxel이 아니라 **상단 섹션에서 현재 선택된 모듈(체크된 것)만** 감시 — 예: F1 ft, F2 ft가 체크돼 있으면 그 두 그룹만 임계값 검사.
+
+**임계값 설정**: 상태바/Viz Controls 근처에 작은 숫자 입력 필드 노출, 데모 현장에서 직접 조정 가능(코드/URL 파라미터 아님). 3개 지표 각각 별도 입력 필드(또는 공용 입력 하나로 시작하고 추후 지표별로 분리 여부는 실사용 피드백에 따름).
+
+**이벤트 선택 강조**: 설정 패널(Lock 버튼 근처에 작은 톱니바퀴 아이콘 등으로 진입)에 `grasp_event`의 하위 이벤트 타입(현재 관측된 것: "Grasp Cycle Started", "Release Executed", "Transport Started", "Transport Complete", "mock_scenario" 등, index.html의 `handleRosbridgeMessage`/alerts 처리 코드에서 실제 타입 전수 확인 필요)별 체크박스 목록을 두고, 체크된 이벤트 타입이 발생하면 임계값 초과와 동일한 방식으로 강조 처리.
+
+**알림 방식**: 시각적 강조만(사운드 없음) —
+- 상태바 배지 잠깐 강조색 flash
+- **3D뷰(`.operator-viz-row`) 우상단에 절대위치 오버레이 카드가 나타났다 자동 사라짐(3~5초)** — 카드 내용은 캔버스 스냅샷이 아니라 **표지판/피켓(sign/picket) 형태의 고정 이미지**(구현 단순, 매번 캔버스 캡처 비용 없음). 경고성(임계값 초과)과 정보성(이벤트 발생)을 시각적으로 구분할 수 있게 최소 2종 준비:
+  - 임계값 초과용: 경고 표지판 스타일(노란/빨강 삼각형 또는 팔각형 STOP 표지판 톤) + 지표명/수치 텍스트 오버레이(예: "F2 force_total 22.3N")
+  - 이벤트 강조용: 안내 피켓/배너 스타일(파란/초록 톤, 팻말을 든 듯한 사각 카드) + 이벤트명 텍스트(예: "Release Executed")
+  이미지 자체는 SVG로 인라인 작성(외부 이미지 파일 의존 없이 `xela_taxel_operator_dg5f/web/index.html` 안에 직접 포함 가능, 텍스트만 동적으로 갈아끼움) — 벡터라 어떤 해상도에서도 선명하고 파일 추가/에셋 관리 불필요.
+- Alerts 카드에도 동일 항목 자동 기록(기존 로그 스트림에 병합)
+
+**구현 스케치**: 임계값 체크는 기존 `updateUrdfMarkers`/payload 처리 루프에서 이미 계산되는 지표값을 매 프레임 재사용(별도 폴링 불필요), 초과 감지 시 새 함수(예: `flashAlertCard(iconOrLabel)`)를 호출해 오버레이 DOM을 생성/제거. 이벤트 타입 체크는 기존 `handleRosbridgeMessage`의 grasp_event 분기에 조건 추가.
+
+**검증**: 임계값을 낮게 설정해 의도적으로 초과시켜 flash 카드/상태바 강조/Alerts 기록이 동시에 트리거되는지 확인, 여러 이벤트가 짧은 시간에 연속 발생할 때 카드가 겹치지 않고 순차 처리되는지 확인, 선택 안 한 모듈의 초과는 무시되는지 확인, 설정 패널에서 이벤트 타입 체크 해제 시 해당 타입은 강조 안 되는지 확인.
+
+### 6-4. (스킵) 사이클 요약 통계
+
+사용자 결정으로 이번 Phase에서 제외.
+
+### 진행 시점
+
+Phase 4/5(성능 검증 마무리, 문서화/README, 커밋)를 먼저 완료한 뒤 별도 세션에서 착수.
