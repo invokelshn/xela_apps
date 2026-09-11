@@ -1,0 +1,174 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>xela_taxel_viz_core real-dg5f verification (2026-09-10)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1b1e24; color: #ddd; font-family: sans-serif; }
+  #status { position: absolute; top: 8px; left: 8px; z-index: 10; font-size: 13px; white-space: pre; }
+  #urdf3dLayer { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="status">status: init</div>
+<div id="urdf3dLayer"></div>
+<script type="module">
+// Real-environment verification harness (2026-09-10, Phase 2 remaining item).
+// Unlike urdf_taxel_markers.html (synthetic TF/payload), this connects to the SAME live
+// rosbridge (port 9090) and SAME real topics (/xvizdg5f/tf[,_static], /x_taxel_dg5f/web_state)
+// that xela_taxel_sidecar_dg5f/web/taxel_sidecar/index.html itself consumes in the running
+// ur7e_xdg5f_atag_right_sim stack, and feeds the captured real TF + real web_state payload
+// through the ported taxel_marker_renderer.js functions (verbatim copies per that file's header).
+// This file is new and viz_core-only -- xela_taxel_sidecar_dg5f is not modified.
+import { createAppState } from "../js/core/app_state.js";
+import { createUrdfMeshRenderer } from "../js/render/urdf_mesh_renderer.js";
+import { createTaxelMarkerRenderer, DG5F_MODULES, createExtractModuleIdFromName } from "../js/render/taxel_marker_renderer.js";
+import { forceColorRgb } from "../js/render/primitives.js";
+
+const statusEl = document.getElementById("status");
+const setStatus = (text) => { statusEl.textContent = `status: ${text}`; };
+
+const config = { wsCandidates: ["ws://localhost:9090"] };
+const state = createAppState(config);
+state.uiMode = "xela";
+
+const extractModuleIdFromName = createExtractModuleIdFromName(DG5F_MODULES, (f) => (f ? String(f).replace(/^\/+/, "").trim() : ""));
+
+const urdf3dLayer = document.getElementById("urdf3dLayer");
+let taxelRenderer;
+const meshRenderer = createUrdfMeshRenderer({
+  state,
+  urdf3dLayer,
+  normalizeFrameId: (f) => (f ? String(f).replace(/^\/+/, "").trim() : ""),
+  setHintText: (t) => console.log("[hint]", t),
+  safeErrorText: (e) => String(e),
+  applyOrbitProfileForMode: () => {},
+  getLinkMaterial: (...args) => taxelRenderer.getLinkMaterial(...args),
+  extractModuleIdFromName,
+  onOrbitInteraction: () => {},
+});
+
+taxelRenderer = createTaxelMarkerRenderer({
+  state,
+  defaultFixedFrame: "world",
+  robotModelFixedFrame: "",
+  applyOrbitProfileForMode: () => {},
+  getSensitivityGamma: () => 1.0,
+  moduleIdFromNameFn: extractModuleIdFromName,
+  onFollowDebugText: () => {},
+  urdfMeshRenderer: meshRenderer,
+  getEnabledModuleIds: () => new Set(DG5F_MODULES),
+});
+state.sensorViewMode = "all";
+
+let latestPayload = null;
+let tfCount = 0;
+let webStateCount = 0;
+
+function applyTfMessage(tfMsg) {
+  const tfEdges = state.urdfSources.xela.tfEdges;
+  for (const t of (tfMsg.transforms || [])) {
+    const child = String(t.child_frame_id || "").replace(/^\/+/, "").trim();
+    const parent = String(t.header.frame_id || "").replace(/^\/+/, "").trim();
+    if (!child) continue;
+    tfEdges.set(child, {
+      parent,
+      tx: t.transform.translation.x,
+      ty: t.transform.translation.y,
+      tz: t.transform.translation.z,
+      qx: t.transform.rotation.x,
+      qy: t.transform.rotation.y,
+      qz: t.transform.rotation.z,
+      qw: t.transform.rotation.w,
+    });
+  }
+  tfCount += 1;
+}
+
+function renderFromLatestPayload() {
+  if (!latestPayload) return;
+  taxelRenderer.bindActiveUrdfSourceToMesh();
+  const fixedFrame = taxelRenderer.selectFixedFrame(state.urdfSources.xela, latestPayload.fixed_frame || "world");
+  state.urdfMesh.fixedFrame = fixedFrame || "world";
+  taxelRenderer.refreshUrdfModuleHighlight(latestPayload);
+  taxelRenderer.updateUrdfMarkers(latestPayload, forceColorRgb);
+}
+
+async function main() {
+  setStatus("initializing THREE runtime...");
+  const ok = await meshRenderer.ensureRuntime();
+  if (!ok) {
+    setStatus("FAILED: ensureRuntime()");
+    return;
+  }
+  setStatus("connecting to ws://localhost:9090 ...");
+
+  const ws = new WebSocket("ws://localhost:9090");
+  ws.onopen = () => {
+    const sub = (topic, type) => ws.send(JSON.stringify({ op: "subscribe", topic, type }));
+    sub("/xvizdg5f/tf", "tf2_msgs/msg/TFMessage");
+    sub("/xvizdg5f/tf_static", "tf2_msgs/msg/TFMessage");
+    sub("/x_taxel_dg5f/web_state", "std_msgs/msg/String");
+    setStatus("connected, waiting for real tf + web_state ...");
+  };
+  ws.onmessage = (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch (e) { return; }
+    if (msg.op !== "publish") return;
+    if (msg.topic === "/xvizdg5f/tf" || msg.topic === "/xvizdg5f/tf_static") {
+      applyTfMessage(msg.msg);
+    } else if (msg.topic === "/x_taxel_dg5f/web_state") {
+      try {
+        const parsed = JSON.parse(msg.msg.data);
+        latestPayload = parsed;
+        webStateCount += 1;
+      } catch (e) { /* ignore parse error */ }
+    }
+  };
+  ws.onerror = () => setStatus("ws error");
+
+  // Render loop: apply whatever real data has arrived so far, same cadence style as
+  // index.html's requestAnimationFrame render() loop.
+  function tick() {
+    renderFromLatestPayload();
+    const m = state.urdfMesh;
+    let visibleCount = 0;
+    let nanCount = 0;
+    for (const marker of m.markerMap.values()) {
+      if (marker.group.visible) visibleCount += 1;
+      const p = marker.group.position;
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.z)) nanCount += 1;
+    }
+    const expectedCount = latestPayload ? (latestPayload.urdf?.points?.length || 0) : 0;
+    const result = {
+      tfMsgCount: tfCount,
+      webStateMsgCount: webStateCount,
+      expectedTaxelCount: expectedCount,
+      markerMapSize: m.markerMap.size,
+      visibleCount,
+      nanCount,
+      fixedFrame: m.fixedFrame,
+      pass: expectedCount === 124 && m.markerMap.size === 124 && visibleCount > 0 && nanCount === 0,
+    };
+    window.__realCheckResult = result;
+    const samples = [];
+    let si = 0;
+    for (const [key, marker] of m.markerMap.entries()) {
+      if (si >= 5) break;
+      samples.push({ key, x: marker.group.position.x, y: marker.group.position.y, z: marker.group.position.z });
+      si += 1;
+    }
+    window.__markerSamples = samples;
+    setStatus(`live real-data check\n${JSON.stringify(result, null, 2)}`);
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+main().catch((err) => {
+  setStatus(`ERROR: ${err && err.message ? err.message : err}`);
+  console.error(err);
+});
+</script>
+</body>
+</html>

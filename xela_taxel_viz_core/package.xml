@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>xela_taxel_viz_core</name>
+  <version>0.1.0</version>
+  <description>
+    Shared JS core (rosbridge client, 3D rendering, URDF/mesh renderer) for Xela taxel
+    sidecar web apps. Static web resources only, no ROS nodes. Extracted from
+    xela_taxel_sidecar_dg5f's web/taxel_sidecar/js/{core,render} and vendor/ as a
+    dependency-free package so other sidecar apps (starting with
+    xela_taxel_operator_dg5f) can reuse the same rendering pipeline without
+    duplicating or depending on xela_taxel_sidecar_dg5f itself.
+  </description>
+  <maintainer email="sanghoon.lee@xelarobotics.com">invokelee</maintainer>
+  <license>TODO: License declaration</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

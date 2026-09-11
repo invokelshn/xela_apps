@@ -1,0 +1,163 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>xela_taxel_viz_core Phase 2 demo: TF + taxel markers</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1b1e24; color: #ddd; font-family: sans-serif; }
+  #status { position: absolute; top: 8px; left: 8px; z-index: 10; font-size: 13px; white-space: pre; }
+  #urdf3dLayer { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="status">status: init</div>
+<div id="urdf3dLayer"></div>
+<script type="module">
+// Phase 2 verification demo (2026-09-10): no real rosbridge/mesh files available in this
+// environment, so this synthesizes a minimal fake TF tree (1 palm + 16 module housings + 124
+// taxel leaf frames, matching DG5F's real taxel count) directly into
+// state.urdfSources.xela.tfEdges and a matching payload.urdf.points array, then drives the
+// ported taxel_marker_renderer.js functions exactly as renderUrdfMesh() would in "xela" UI mode
+// (no housing-mesh composition needed in that mode, so urdf_mesh_renderer.js's mesh-loading path
+// can be skipped -- only its ensureRuntime() THREE/scene/markerGroup setup is needed).
+// See docs/plans/dg5f_operator_split_phase2_design.md for why a full dg5f-vs-operator pixel
+// comparison isn't done here instead (no real GPU/rosbridge fixture in this session).
+import { buildRuntimeConfig } from "../js/core/runtime_config.js";
+import { createAppState } from "../js/core/app_state.js";
+import { createUrdfMeshRenderer } from "../js/render/urdf_mesh_renderer.js";
+import { createTaxelMarkerRenderer, DG5F_MODULES, createExtractModuleIdFromName } from "../js/render/taxel_marker_renderer.js";
+import { forceColorRgb } from "../js/render/primitives.js";
+
+const statusEl = document.getElementById("status");
+const setStatus = (text) => { statusEl.textContent = `status: ${text}`; };
+
+const config = buildRuntimeConfig(window);
+const state = createAppState(config);
+state.uiMode = "xela";
+
+const extractModuleIdFromName = createExtractModuleIdFromName(DG5F_MODULES, (f) => (f ? String(f).replace(/^\/+/, "").trim() : ""));
+
+const urdf3dLayer = document.getElementById("urdf3dLayer");
+// Forward reference: getLinkMaterial (owned by taxelRenderer, ported from index.html 2447) is
+// needed by meshRenderer, but refreshUrdfModuleHighlight (owned by taxelRenderer too) needs
+// meshRenderer.refreshLinkMaterials -- same mutual reference the original resolves by having both
+// live in one page scope. Here `taxelRenderer` is assigned after `meshRenderer` but this thunk
+// isn't called until markers/mesh actually render, by which point it is set.
+let taxelRenderer;
+const meshRenderer = createUrdfMeshRenderer({
+  state,
+  urdf3dLayer,
+  normalizeFrameId: (f) => (f ? String(f).replace(/^\/+/, "").trim() : ""),
+  setHintText: (t) => console.log("[hint]", t),
+  safeErrorText: (e) => String(e),
+  applyOrbitProfileForMode: () => {},
+  getLinkMaterial: (...args) => taxelRenderer.getLinkMaterial(...args),
+  extractModuleIdFromName,
+  onOrbitInteraction: () => {},
+});
+
+taxelRenderer = createTaxelMarkerRenderer({
+  state,
+  defaultFixedFrame: "world",
+  robotModelFixedFrame: "",
+  applyOrbitProfileForMode: () => {},
+  getSensitivityGamma: () => 1.0,
+  moduleIdFromNameFn: extractModuleIdFromName,
+  onFollowDebugText: () => {},
+  urdfMeshRenderer: meshRenderer,
+  // "all" view mode + every module enabled reproduces the Admin default (all modules shown),
+  // matching collectEnabledModuleIdsFromUi's plain state.showModules branch.
+  getEnabledModuleIds: () => new Set(DG5F_MODULES),
+});
+state.sensorViewMode = "all";
+
+function buildSyntheticTfAndPayload() {
+  const tfEdges = state.urdfSources.xela.tfEdges;
+  tfEdges.set("palm_uSPa46_link", { parent: "world", tx: 0, ty: 0, tz: 0.1, qx: 0, qy: 0, qz: 0, qw: 1 });
+
+  const points = [];
+  let taxelSerial = 0;
+  for (let mi = 0; mi < DG5F_MODULES.length; mi += 1) {
+    const moduleName = DG5F_MODULES[mi];
+    const housingFrame = `base_${moduleName}_link`;
+    tfEdges.set(housingFrame, {
+      parent: "palm_uSPa46_link",
+      tx: 0.01 * mi, ty: 0.0, tz: 0.0,
+      qx: 0, qy: 0, qz: 0, qw: 1,
+    });
+    // 124 taxels total across 16 modules -- not evenly divisible, so vary per-module count
+    // (7 or 8) the same way the real hand's uneven per-sensor-type taxel counts do.
+    const countForModule = mi < (124 % DG5F_MODULES.length) ? Math.ceil(124 / DG5F_MODULES.length) : Math.floor(124 / DG5F_MODULES.length);
+    for (let ti = 0; ti < countForModule; ti += 1) {
+      taxelSerial += 1;
+      const idx = String(ti + 1).padStart(2, "0");
+      const frameId = `x_taxel_${taxelSerial}_${moduleName}_${idx}_joint`;
+      tfEdges.set(frameId, {
+        parent: housingFrame,
+        tx: 0.001 * ti, ty: 0.001 * ti, tz: 0.002,
+        qx: 0, qy: 0, qz: 0, qw: 1,
+      });
+      points.push({
+        module: "right",
+        sensor_index: taxelSerial,
+        frame_id: frameId,
+        x: 0, y: 0, z: 0,
+        fx: 0.05, fy: -0.02, fz: 0.3,
+        norm: Math.min(1, taxelSerial / 124),
+      });
+    }
+  }
+  return { tfEdges, points, expectedCount: taxelSerial };
+}
+
+async function main() {
+  setStatus("initializing THREE runtime...");
+  const ok = await meshRenderer.ensureRuntime();
+  if (!ok) {
+    setStatus("FAILED: ensureRuntime()");
+    return;
+  }
+
+  const { points, expectedCount } = buildSyntheticTfAndPayload();
+  taxelRenderer.bindActiveUrdfSourceToMesh();
+  const fixedFrame = taxelRenderer.selectFixedFrame(state.urdfSources.xela, "world");
+  state.urdfMesh.fixedFrame = fixedFrame || "world";
+  // "xela" mode marker placement doesn't require robotBuilt/linkGroups (that's only needed for
+  // uiMode === "robot" housing composition) -- only markerGroup/THREE from ensureRuntime above.
+  const payload = { fixed_frame: "world", meta: { xy_force_range: 0.8, z_force_range: 14.0 }, urdf: { points } };
+  // Exercise the now-ported refreshUrdfModuleHighlight/getLinkMaterial path for real (previously
+  // bypassed here via `state.urdfMesh.lastHighlightSignature = null`) -- this populates
+  // m.activeModuleIds/m.lastHighlightSignature the same way index.html's render loop does before
+  // calling updateUrdfMarkers, which gates marker visibility on activeModuleIds.
+  taxelRenderer.refreshUrdfModuleHighlight(payload);
+  taxelRenderer.updateUrdfMarkers(payload, forceColorRgb);
+
+  const m = state.urdfMesh;
+  let visibleCount = 0;
+  let nanCount = 0;
+  for (const marker of m.markerMap.values()) {
+    if (marker.group.visible) visibleCount += 1;
+    const p = marker.group.position;
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.z)) nanCount += 1;
+  }
+
+  const result = {
+    expectedTaxelCount: expectedCount,
+    markerMapSize: m.markerMap.size,
+    visibleCount,
+    nanCount,
+    fixedFrame: state.urdfMesh.fixedFrame,
+    pass: expectedCount === 124 && m.markerMap.size === 124 && visibleCount === 124 && nanCount === 0,
+  };
+  window.__phase2DemoResult = result;
+  setStatus(`${result.pass ? "PASS" : "FAIL"}\n${JSON.stringify(result, null, 2)}`);
+  console.log("[phase2-demo]", result);
+}
+
+main().catch((err) => {
+  setStatus(`ERROR: ${err && err.message ? err.message : err}`);
+  console.error(err);
+});
+</script>
+</body>
+</html>

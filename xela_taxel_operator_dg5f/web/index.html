@@ -1,0 +1,699 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>DG5F Operator</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #12151b;
+    color: #e6e8ec;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+  }
+  /* Layout ported verbatim (structure, not pixel-for-pixel styling) from the original dg5f
+     Operator mode in xela_taxel_sidecar_dg5f/web/taxel_sidecar/index.html (.app / .toolbar /
+     .operator-viz-row / .viz rules, ~lines 38-45 and 367-410 there): a full-width vertical
+     stack (status bar -> module toolbar -> viz row -> graph/session panel -> filmstrip),
+     NOT a sidebar-with-full-height-3D-view layout. See dg5f_operator_split_implementation_plan.md
+     for the bug this fixes (3D view was taking the full viewport height, everything else
+     crammed into a narrow 360px sidebar). */
+  #app {
+    display: grid;
+    /* 2026-09-11: rows 1/2/5 (status bar, toolbar, filmstrip) use the `min-content` track
+       sizing function explicitly instead of `auto`. This was needed on top of the align-content
+       fix and the per-item `min-height` overrides below: once #graphHost's real content (a
+       session card) makes the page's total content height exceed the viewport, the grid's track
+       sizing algorithm still shrank rows whose *item* automatic-minimum-size could resolve to 0
+       (`.full-width-row`'s overflow-x:auto, `.op-film`'s overflow-x:auto inside #filmstripHost)
+       even after adding explicit `min-height` on those items -- confirmed by measuring
+       `getComputedStyle(#app).gridTemplateRows` before/after: it still reported "37px 0px 420px
+       663px 42px" (row 2 back to 0) with a real module card in the graph panel, even though the
+       previous fix alone was enough with the graph panel merely toggled open but empty. Using the
+       `min-content` track-sizing keyword directly (rather than `auto`) makes the *track itself*
+       use the intrinsic min-content size as its minimum, which is not subject to the "automatic
+       minimum size drops to 0 under non-visible overflow" rule that only applies to grid *items*
+       feeding into an `auto` track -- it fully resolved the collapse in every scenario tested
+       below (module selected + Graphs shown + Live On, at 1000px/1080px/768px viewports). Row 3
+       (.operator-viz-row) and row 4 (#graphHost, the one row that should grow) stay `auto`. */
+    grid-template-rows: min-content min-content auto auto min-content;
+    width: 100%;
+    min-height: 100%;
+    height: 100%;
+    gap: 10px;
+    padding: 12px;
+    overflow-y: auto;
+    box-sizing: border-box;
+    /* 2026-09-11 bug fix: CSS Grid's default `align-content: normal` behaves as `stretch` for
+       grid containers (a well-known spec gotcha, unlike flexbox where `normal` behaves as
+       `flex-start`). With `height: 100%` giving #app a definite size and all 5 rows sized
+       `auto`, any leftover viewport space below the rows' actual content height was being
+       distributed EQUALLY across all 5 "auto" rows -- confirmed by measuring getComputedStyle
+       (`grid-template-rows`) before this fix: at a 1600x1000 viewport with Graphs hidden, every
+       row was inflated by ~79px versus its real content height (e.g. the status bar row was
+       115px tall even though the status-bar widget itself is only ~35px), which is exactly the
+       "huge empty space above the toolbar" bug reported by the user. Pinning align-content to
+       `start` makes each row exactly as tall as its content, matching the original dg5f
+       Operator-mode layout's actual (un-stretched) behavior. */
+    align-content: start;
+  }
+  #statusBarHost {
+    grid-row: 1;
+  }
+  .full-width-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  #vizControlsHost, #modulesHost {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  /* Compact one-line toolbar (2026-09-10 layout tweak): the top .full-width-row previously let
+     #vizControlsHost/#modulesHost's own op-viz-controls/op-modsel widgets (xela_atag_taxel_viewer,
+     unmodified) wrap onto extra rows using their own default padding/gaps, which stacked the
+     toolbar taller than needed. Nothing about their DOM/behavior changes here -- only spacing,
+     via a CSS override scoped to this page (same pattern as dg5f's own #operatorGraphHost
+     overrides in xela_taxel_sidecar_dg5f/web/taxel_sidecar/index.html). */
+  .full-width-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    align-items: center;
+    /* 2026-09-11 bug fix (the real cause of "toolbar disappears when Graphs is shown / comes
+       back on Live On"): per the CSS Sizing spec, a grid item's *automatic minimum size* --
+       what the "auto" grid-template-rows track falls back to when the grid runs out of room --
+       is content-based (min-content) UNLESS the item's own `overflow` is anything other than
+       `visible`, in which case it drops to 0. `overflow-x: auto` here makes `overflow-y` compute
+       to `auto` too (can't mix visible/non-visible per axis), so this row's automatic minimum
+       became 0. As long as the page's total content fit inside the viewport (Graphs hidden, or a
+       short viewport) that never mattered -- but once Graphs is shown and the session panel adds
+       real content, #graphHost's row alone can exceed the viewport, and the grid then shrinks
+       exactly the row(s) with a 0 automatic minimum to reclaim space -- this row's rendered
+       height measured 0px via getBoundingClientRect() in that state (verified with Playwright:
+       `.full-width-row` rect height 0, its child `#vizControlsHost` rendered 15px above/below
+       that 0-height box because of `align-items:center`, and pointer events landed on `#app`
+       instead of the button underneath). Explicit `min-height` overrides the automatic-minimum-
+       size rule regardless of overflow, so this row can no longer be squeezed away. */
+    min-height: min-content;
+  }
+  #vizControlsHost .op-viz-controls {
+    padding: 4px 6px;
+    gap: 6px;
+  }
+  #vizControlsHost .op-viz-btn {
+    padding: 3px 9px;
+  }
+  #modulesHost .op-modsel {
+    padding: 4px 6px;
+    gap: 10px;
+    flex-wrap: nowrap;
+  }
+  #modulesHost .op-modsel-group {
+    gap: 1px;
+  }
+  #modulesHost .op-modsel-subs {
+    gap: 4px;
+    padding-left: 4px;
+  }
+
+  /* Graph section (2026-09-10): strip the session panel down to Live toggle + the three
+     force_total/shear_mag_avg/shear_normal_ratio filter checkboxes -- everything else in its
+     toolbars/controls-row (Clear View, session name/capture/load/download, its own
+     module-checklist, heatmap amplify/local-window checkboxes) is hidden here. This mirrors
+     dg5f's own #operatorGraphHost CSS-override pattern in xela_taxel_sidecar_dg5f's index.html
+     (unmodified, read-only reference) -- the shared taxel_session_panel.js component (from
+     xela_atag_taxel_viewer, also unmodified) has no option flags for this, so it's done via a
+     CSS override scoped to #graphHost here instead of touching that component. */
+  #graphHost .taxel-session-toolbar,
+  #graphHost .taxel-session-controls-row {
+    display: none;
+  }
+  #graphHost .taxel-session-toolbar:has([data-action="toggle-live"]) {
+    display: flex;
+  }
+  #graphHost .taxel-session-toolbar:has([data-action="toggle-live"]) > :not([data-action="toggle-live"]) {
+    display: none;
+  }
+  #graphHost .taxel-session-toolbar:has([data-field="time-scrub"]),
+  #graphHost .taxel-session-toolbar:has([data-action="follow-latest"]) {
+    display: flex;
+  }
+  /* The module-checklist itself stays hidden (top toolbar's module checkboxes drive selection
+     instead, see the sync glue in the <script> below) but the view-toggles column (Live's
+     sibling force_total/shear_mag_avg/shear_normal_ratio checkboxes) must stay visible --
+     unlike dg5f's Admin/Operator split, the requirement here keeps those filters. */
+  #graphHost .taxel-session-controls-row:has(.taxel-session-view-toggles) {
+    display: flex;
+  }
+  #graphHost .taxel-session-module-checklist {
+    display: none;
+  }
+  /* The heatmap-only "Amplify heatmap (log color scale)" / "Local window scale (±3s)" toggles
+     have no visible effect once the heatmap canvas itself is hidden below -- keep only the
+     three line-chart series filters the requirement actually asks for. */
+  #graphHost label:has([data-field="heatmap-log-scale"]),
+  #graphHost label:has([data-field="heatmap-local-window"]) {
+    display: none;
+  }
+  #graphHost canvas[data-role="heatmap"],
+  #graphHost .taxel-session-card-sub:has(+ canvas[data-role="heatmap"]) {
+    display: none;
+  }
+  /* Line chart + shear(x,y) snapshot side by side per module, per the layout requirement --
+     selectors target by role/adjacency so the hidden heatmap items above (still in the DOM,
+     just display:none) don't affect grid auto-placement. */
+  #graphHost .taxel-session-card-body {
+    display: grid;
+    grid-template-columns: 1fr 200px;
+    column-gap: 14px;
+    align-items: start;
+  }
+  #graphHost .taxel-session-card-sub:has(+ canvas[data-role="line"]) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  #graphHost canvas[data-role="line"] {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  #graphHost .taxel-session-card-sub:has(+ canvas[data-role="quiver"]) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  #graphHost canvas[data-role="quiver"] {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: center;
+  }
+  #graphHost .taxel-session-scrub-track-wrap {
+    padding-right: 214px;
+  }
+  /* Bug fix (2026-09-11): the session panel's own .taxel-session-btn rule (taxel_session_panel.js,
+     unmodified) only sets `cursor:pointer; padding:4px 10px` -- it relies on inherited/UA button
+     styling for everything else, so "Live: On/Off" and "Follow Latest" render as plain square
+     buttons while Sensitivity/Graphs (operator_viz_controls.js's .op-viz-btn, unmodified) use a
+     pill shape (border-radius:100px, translucent border/background, 12px sans-serif). Neither
+     component is touched -- this page-scoped override just re-applies the same .op-viz-btn look
+     to .taxel-session-btn so the two button groups read as one consistent style.
+     .op-viz-btn.on is border-color:#4ade80 for an active toggle; taxel_session_panel.js doesn't
+     add an "on"/active class to toggle-live, so it's matched here via [aria-pressed="true"] OR by
+     its own text content changing to "Live: On" (kept simple: color follows :not([disabled]) plus
+     a text-based nth-of-type is unreliable, so only the base pill shape is unified here -- the
+     live text itself, e.g. "Live: On", already conveys state without needing a color change). */
+  #graphHost .taxel-session-btn {
+    cursor: pointer;
+    padding: 5px 12px;
+    border-radius: 100px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.04);
+    font: 12px sans-serif;
+    color: inherit;
+  }
+  #graphHost .taxel-session-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  /* Bug fix (2026-09-11): force_total/shear_mag_avg/shear_normal_ratio filter checkboxes were
+     stacked vertically because taxel_session_panel.js's own CSS
+     (`.taxel-session-view-toggles { display:flex; flex-direction:column; ... }`, unmodified)
+     defaults to a column. Requirement is a single horizontal row -- override the direction only,
+     scoped to this page. */
+  #graphHost .taxel-session-view-toggles {
+    flex-direction: row;
+    gap: 14px;
+  }
+
+  /* Same shape as dg5f's .operator-viz-row: 3D view + narrow alert-card column side by side,
+     fixed (but user-resizable) height instead of stretching to fill the viewport. */
+  .operator-viz-row {
+    grid-row: 3;
+    display: flex;
+    gap: 10px;
+    height: 420px;
+    min-height: 220px;
+    max-height: 90vh;
+    resize: vertical;
+    overflow: hidden;
+  }
+  #mainViewCol {
+    flex: 1 1 auto;
+    height: 100%;
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #0d1729 0%, #0b1221 100%);
+  }
+  #urdf3dLayer { width: 100%; height: 100%; }
+  #connOverlay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 5;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 100px;
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+  #connOverlay.connected { color: #4ade80; border-color: rgba(74,222,128,0.4); }
+  #connOverlay.disconnected { color: #f87171; border-color: rgba(248,113,113,0.4); }
+
+  /* Beside #mainViewCol in .operator-viz-row, same fixed-width/full-height-of-row shape as
+     dg5f's #operatorAlertsHost (index.html ~line 150). */
+  #alertsHost {
+    flex: 0 0 280px;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  /* Session/graph panel: full-width row below the viz row, same as dg5f's stats-row /
+     #operatorGraphHost placement. */
+  #graphHost {
+    grid-row: 4;
+    width: 100%;
+  }
+
+  /* Filmstrip: full-width row at the very bottom, same as dg5f's #operatorFilmstripHost. */
+  #filmstripHost {
+    grid-row: 5;
+    width: 100%;
+    /* 2026-09-11: was `min-height: 0`, which -- same root cause as `.full-width-row` above --
+       explicitly told this row's "auto" grid track it's allowed to shrink to 0 under space
+       pressure (e.g. once Graphs is shown and the session panel grows tall enough that total
+       content exceeds the viewport). Dropped in favor of the default `auto`, which sizes this
+       row to its actual content (the filmstrip widget, or the "No frames yet." placeholder). */
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="statusBarHost"></div>
+  <div class="full-width-row" style="grid-row: 2;">
+    <div id="vizControlsHost"></div>
+    <div id="modulesHost"></div>
+  </div>
+  <div class="operator-viz-row">
+    <div id="mainViewCol">
+      <div id="connOverlay" class="disconnected">connecting...</div>
+      <div id="urdf3dLayer"></div>
+    </div>
+    <div id="alertsHost"></div>
+  </div>
+  <div id="graphHost" style="display: none;"></div>
+  <div id="filmstripHost"></div>
+</div>
+
+<script type="module">
+// DG5F Operator page -- Phase 3 (xela_taxel_operator_dg5f).
+//
+// This is a standalone entry point, independent of xela_taxel_sidecar_dg5f/web/taxel_sidecar
+// /index.html (which is left completely unmodified). It loads ONLY:
+//   - xela_taxel_viz_core's JS (rosbridge client, 3D scene + URDF mesh renderer, TF resolution
+//     + taxel marker renderer -- ported verbatim from dg5f's index.html in Phase 2) via
+//     /pkg/xela_taxel_viz_core/web/js/...
+//   - xela_atag_taxel_viewer's operator/session widgets (status bar, alert cards, filmstrip,
+//     module select, viz controls, session panel) via the js/operator and js/session
+//     symlinks installed alongside this file.
+// It never loads dg5f's 2D grid renderer, follow-cam toggle, or raw debug panel -- those only
+// exist in xela_taxel_sidecar_dg5f's own index.html/js, which this page does not import.
+//
+// Unlike xela_taxel_sidecar_dg5f (which vendors xela_atag_taxel_viewer's js/operator and
+// js/session via filesystem symlinks checked into git, resolved at colcon-install time), this
+// page pulls those same files through this package's own operator_http_server.py /pkg/<pkg>/
+// <path> passthrough instead -- a same-depth relative symlink from web/js/{operator,session}
+// breaks once colcon copies it into install/ (source and install trees sit at different
+// directory depths, so the same "../../../../../atag/..." target no longer resolves); the
+// /pkg/ passthrough sidesteps that by resolving via ament_index at request time, exactly like
+// viz_core's own JS is loaded below.
+//
+// Connects to this package's OWN dedicated rosbridge instance (default ws://<host>:9092,
+// started by xela_taxel_operator_dg5f.launch.py), never to dg5f's 9090/9091. The topics/
+// services themselves (/x_taxel_dg5f/web_state, /xvizdg5f/tf[,_static], /atag/grasp_event,
+// /xela_atag_taxel_viewer_node/*) are produced by nodes that are part of the existing
+// baseline stack (ur7e_xdg5f_atag_right_common) regardless of which rosbridge instance is
+// used to reach them.
+import { createRosbridgeClient } from "/pkg/xela_taxel_viz_core/web/js/core/rosbridge_client.js";
+import { createAppState } from "/pkg/xela_taxel_viz_core/web/js/core/app_state.js";
+import { buildRuntimeConfig } from "/pkg/xela_taxel_viz_core/web/js/core/runtime_config.js";
+import { createUrdfMeshRenderer } from "/pkg/xela_taxel_viz_core/web/js/render/urdf_mesh_renderer.js";
+import {
+  createTaxelMarkerRenderer,
+  DG5F_MODULES,
+  createExtractModuleIdFromName,
+} from "/pkg/xela_taxel_viz_core/web/js/render/taxel_marker_renderer.js";
+import { forceColorRgb } from "/pkg/xela_taxel_viz_core/web/js/render/primitives.js";
+
+import { createOperatorStatusBar } from "/pkg/xela_atag_taxel_viewer/web/js/operator/operator_status_bar.js";
+import { createOperatorModuleSelect } from "/pkg/xela_atag_taxel_viewer/web/js/operator/operator_module_select.js";
+import { createOperatorVizControls } from "/pkg/xela_atag_taxel_viewer/web/js/operator/operator_viz_controls.js";
+import { createOperatorAlertCards } from "/pkg/xela_atag_taxel_viewer/web/js/operator/operator_alert_cards.js";
+import { createOperatorFilmstrip } from "/pkg/xela_atag_taxel_viewer/web/js/operator/operator_filmstrip.js";
+import { createTaxelSessionPanel } from "/pkg/xela_atag_taxel_viewer/web/js/session/taxel_session_panel.js";
+
+const connOverlay = document.getElementById("connOverlay");
+function setConnStatus(text, connected) {
+  connOverlay.textContent = text;
+  connOverlay.classList.toggle("connected", !!connected);
+  connOverlay.classList.toggle("disconnected", !connected);
+}
+
+// Resolve the rosbridge port for this page: default 9092 (this package's own instance,
+// distinct from dg5f's 9090/9091), overridable via ?rosbridge_port= for local testing.
+// DG5F-specific defaults (ns/topic/node names) mirror xela_taxel_sidecar_dg5f's own
+// runtime_config usage (via window.XELA_VIZ_DEFAULT_* globals) so this page needs no URL
+// params to work out of the box against the same baseline stack.
+const urlParams = new URLSearchParams(window.location.search);
+const rosbridgePort = urlParams.get("rosbridge_port") || "9092";
+const rosbridgeHost = urlParams.get("rosbridge_host") || window.location.hostname || "localhost";
+const wsCandidates = [`ws://${rosbridgeHost}:${rosbridgePort}`];
+
+window.XELA_VIZ_DEFAULT_NS = window.XELA_VIZ_DEFAULT_NS || "/xvizdg5f";
+window.XELA_VIZ_DEFAULT_TOPIC = window.XELA_VIZ_DEFAULT_TOPIC || "/x_taxel_dg5f";
+window.XELA_VIZ_DEFAULT_VIZ_NODE = window.XELA_VIZ_DEFAULT_VIZ_NODE || "/xvizdg5f/std_xela_taxel_viz_dg5f";
+window.XELA_VIZ_DEFAULT_BRIDGE_NODE = window.XELA_VIZ_DEFAULT_BRIDGE_NODE || "/xela_taxel_web_bridge_cpp";
+
+const config = buildRuntimeConfig(window);
+config.wsCandidates = wsCandidates;
+const state = createAppState(config);
+state.uiMode = "xela";
+state.sensorViewMode = "all";
+
+const extractModuleIdFromName = createExtractModuleIdFromName(
+  DG5F_MODULES,
+  (f) => (f ? String(f).replace(/^\/+/, "").trim() : ""),
+);
+
+const DG5F_MODULE_NAMES = [
+  "f1_dg5f_ft", "f2_dg5f_ft", "f3_dg5f_ft", "f4_dg5f_ft", "f5_dg5f_ft",
+  "f1_mid_uSPa22", "f2_mid_uSPa22", "f3_mid_uSPa22", "f4_mid_uSPa22", "f5_mid_uSPa22",
+  "f1_prox_uSPa22", "f2_prox_uSPa22", "f3_prox_uSPa22", "f4_prox_uSPa22", "f5_prox_uSPa22",
+  "palm_uSPa46",
+];
+
+const DG5F_OPERATOR_MODULE_GROUPS = [1, 2, 3, 4, 5]
+  .map((n) => ({
+    key: `f${n}`,
+    label: `F${n}`,
+    modules: [
+      { key: `f${n}_dg5f_ft`, label: "ft" },
+      { key: `f${n}_mid_uSPa22`, label: "mid" },
+      { key: `f${n}_prox_uSPa22`, label: "prox" },
+    ],
+  }))
+  .concat([{ key: "palm", label: "Palm", modules: [{ key: "palm_uSPa46", label: "uSPa46" }] }]);
+
+function computeTipForcesN(payload) {
+  const RAW_TAXEL_SCALE_N = 0.001;
+  const points = (Array.isArray(payload?.urdf?.points) && payload.urdf.points.length > 0)
+    ? payload.urdf.points
+    : (Array.isArray(payload?.grid?.points) ? payload.grid.points : []);
+  const sums = { f1_dg5f_ft: 0, f2_dg5f_ft: 0 };
+  const counts = { f1_dg5f_ft: 0, f2_dg5f_ft: 0 };
+  for (const p of points) {
+    const moduleId = extractModuleIdFromName(p?.frame_id);
+    if (moduleId !== "f1_dg5f_ft" && moduleId !== "f2_dg5f_ft") continue;
+    const fz = Number(p?.fz);
+    if (!Number.isFinite(fz)) continue;
+    sums[moduleId] += Math.abs(fz);
+    counts[moduleId] += 1;
+  }
+  return {
+    f1: counts.f1_dg5f_ft ? sums.f1_dg5f_ft * RAW_TAXEL_SCALE_N : 0,
+    f2: counts.f2_dg5f_ft ? sums.f2_dg5f_ft * RAW_TAXEL_SCALE_N : 0,
+  };
+}
+
+const urdf3dLayer = document.getElementById("urdf3dLayer");
+let taxelRenderer;
+const meshRenderer = createUrdfMeshRenderer({
+  state,
+  urdf3dLayer,
+  normalizeFrameId: (f) => (f ? String(f).replace(/^\/+/, "").trim() : ""),
+  setHintText: (t) => { if (t) console.log("[hint]", t); },
+  safeErrorText: (e) => String(e),
+  applyOrbitProfileForMode: () => {},
+  getLinkMaterial: (...args) => taxelRenderer.getLinkMaterial(...args),
+  extractModuleIdFromName,
+  onOrbitInteraction: () => {},
+});
+
+// Operator-only sensitivity boost (1/2/3 cycle), same gammas as dg5f's own Operator mode.
+// Applied inside taxel_marker_renderer.js itself via the injected getSensitivityGamma() below.
+const OPERATOR_SENSITIVITY_GAMMA = { 1: 1.0, 2: 0.45, 3: 0.22 };
+let operatorSensitivityLevel = 1;
+
+let enabledModuleIds = new Set(DG5F_MODULE_NAMES);
+
+taxelRenderer = createTaxelMarkerRenderer({
+  state,
+  defaultFixedFrame: "world",
+  robotModelFixedFrame: "",
+  applyOrbitProfileForMode: () => {},
+  getSensitivityGamma: () => OPERATOR_SENSITIVITY_GAMMA[operatorSensitivityLevel] ?? 1.0,
+  moduleIdFromNameFn: extractModuleIdFromName,
+  onFollowDebugText: () => {},
+  urdfMeshRenderer: meshRenderer,
+  getEnabledModuleIds: () => enabledModuleIds,
+});
+
+let latestPayload = null;
+let lastReceivedMs = 0;
+let rosbridgeConnected = false;
+
+let robotDescriptionRequested = false;
+function requestRobotDescription() {
+  if (robotDescriptionRequested) return;
+  robotDescriptionRequested = true;
+  rosbridgeClient.sendServiceRequest(config.xelaRobotDescriptionService, { names: ["robot_description"] });
+}
+
+// taxel_marker_renderer.js's ported bindActiveUrdfSourceToMesh() only binds the TF-related
+// fields it needs (tfEdges/frameAliasCache/frameLeafIndexSource) -- deliberately narrower than
+// index.html's original version, which also binds robotDescriptionXml to trigger a mesh
+// (re)build (see Phase 2 design doc's note on this function). This page still wants the
+// housing mesh for visual parity with Admin, so it does that small extra bit of glue itself.
+function bindRobotDescriptionToMesh() {
+  const src = state.urdfSources.xela;
+  const m = state.urdfMesh;
+  if (m.robotDescriptionXml !== src.robotDescriptionXml) {
+    m.robotDescriptionXml = src.robotDescriptionXml;
+    m.robotBuilt = false;
+    m.autoFrameDone = false;
+  }
+}
+
+async function renderFromLatestPayload() {
+  const m = state.urdfMesh;
+  if (!m.ready) return;
+  meshRenderer.resize();
+  taxelRenderer.bindActiveUrdfSourceToMesh();
+  bindRobotDescriptionToMesh();
+  if (!m.robotBuilt && m.robotDescriptionXml) {
+    await meshRenderer.buildRobotFromDescription();
+  }
+  if (!latestPayload) return;
+  const fixedFrame = taxelRenderer.selectFixedFrame(state.urdfSources.xela, latestPayload.fixed_frame || "world");
+  m.fixedFrame = fixedFrame || "world";
+  taxelRenderer.updateRobotLinkTransforms(m.fixedFrame, true);
+  taxelRenderer.refreshUrdfModuleHighlight(latestPayload);
+  taxelRenderer.updateUrdfMarkers(latestPayload, forceColorRgb);
+  taxelRenderer.autoFrameUrdfMeshCamera(false);
+  m.controls.update();
+  m.renderer.render(m.scene, m.camera);
+}
+
+function applyTfMessage(tfMsg) {
+  const tfEdges = state.urdfSources.xela.tfEdges;
+  for (const t of (tfMsg.transforms || [])) {
+    const child = String(t.child_frame_id || "").replace(/^\/+/, "").trim();
+    const parent = String(t.header.frame_id || "").replace(/^\/+/, "").trim();
+    if (!child) continue;
+    tfEdges.set(child, {
+      parent,
+      tx: t.transform.translation.x,
+      ty: t.transform.translation.y,
+      tz: t.transform.translation.z,
+      qx: t.transform.rotation.x,
+      qy: t.transform.rotation.y,
+      qz: t.transform.rotation.z,
+      qw: t.transform.rotation.w,
+    });
+  }
+}
+
+let graphsShown = false;
+function setGraphsShown(show) {
+  graphsShown = show;
+  document.getElementById("graphHost").style.display = show ? "" : "none";
+}
+
+// -- Operator widgets (xela_atag_taxel_viewer, unmodified) --------------------------------
+const operatorStatusBar = createOperatorStatusBar({ container: document.getElementById("statusBarHost") });
+const operatorAlertCards = createOperatorAlertCards({ container: document.getElementById("alertsHost") });
+const operatorFilmstrip = createOperatorFilmstrip({
+  container: document.getElementById("filmstripHost"),
+  getCanvas: () => urdf3dLayer.querySelector("canvas"),
+});
+// Syncs the top toolbar's module selection (operatorModuleSelect, below) into the graph
+// section's session panel -- ported from dg5f's own setModuleCheckboxSelection() in
+// xela_taxel_sidecar_dg5f/web/taxel_sidecar/index.html (read-only reference), which drives
+// that panel's module-checklist checkboxes (hidden by CSS above, see #graphHost rules) by
+// simulating clicks on them, since taxel_session_panel.js (xela_atag_taxel_viewer, unmodified)
+// has no setSelectedModules()-style API of its own -- only its checkbox DOM. This keeps the
+// session panel's own onModuleSelectionChanged() (which calls setActiveModules and rebuilds the
+// per-module cards) as the single place that actually reacts to the selection, rather than
+// reimplementing that logic here.
+function syncGraphModuleSelection(names) {
+  const checkboxes = document.querySelectorAll("#graphHost [data-module-checkbox]");
+  if (!checkboxes || checkboxes.length === 0) return;
+  let anyChanged = false;
+  checkboxes.forEach((cb) => {
+    const shouldBeChecked = names.has(cb.value);
+    if (cb.checked !== shouldBeChecked) {
+      cb.checked = shouldBeChecked;
+      anyChanged = true;
+    }
+  });
+  if (anyChanged) {
+    checkboxes[0].dispatchEvent(new Event("change", { bubbles: true }));
+  }
+}
+
+const operatorModuleSelect = createOperatorModuleSelect({
+  container: document.getElementById("modulesHost"),
+  groups: DG5F_OPERATOR_MODULE_GROUPS,
+  onChange: () => {
+    enabledModuleIds = operatorModuleSelect.getEnabledModuleIds();
+    syncGraphModuleSelection(enabledModuleIds);
+  },
+});
+const operatorVizControls = createOperatorVizControls({
+  container: document.getElementById("vizControlsHost"),
+  sensitivity: {
+    get: () => operatorSensitivityLevel,
+    cycle: () => { operatorSensitivityLevel = (operatorSensitivityLevel % 3) + 1; },
+  },
+  graphs: {
+    get: () => graphsShown,
+    toggle: () => setGraphsShown(!graphsShown),
+  },
+});
+
+// -- Main (dedicated, package-owned) rosbridge connection --------------------------------
+const wsState = { ws: null, manualClose: false };
+const rosbridgeClient = createRosbridgeClient({
+  state: wsState,
+  wsCandidates,
+  topicInfoEl: null,
+  topicInfoTextFor: () => "",
+  setStatus: setConnStatus,
+  onOpen: () => {
+    const sub = (topic, type, throttleRate = 0) =>
+      wsState.ws.send(JSON.stringify({ op: "subscribe", topic, type, throttle_rate: throttleRate }));
+    sub("/xvizdg5f/tf", "tf2_msgs/msg/TFMessage", 0);
+    sub("/xvizdg5f/tf_static", "tf2_msgs/msg/TFMessage", 0);
+    sub("/x_taxel_dg5f/web_state", "std_msgs/msg/String", 0);
+    sub("/atag/grasp_event", "std_msgs/msg/String", 0);
+    sub("/xela_atag_taxel_viewer_node/live_module_data", "std_msgs/msg/String", 0);
+    setConnStatus("connected", true);
+    rosbridgeConnected = true;
+    requestRobotDescription();
+  },
+  onCloseOpened: () => { setConnStatus("disconnected", false); rosbridgeConnected = false; },
+  onErrorOpened: () => { setConnStatus("socket error", false); rosbridgeConnected = false; },
+  onMessageParsed: (msg) => {
+    if (msg.op === "service_response" && msg.service === config.xelaRobotDescriptionService) {
+      const values = Array.isArray(msg.values?.values) ? msg.values.values : [];
+      const xml = values.length > 0 && typeof values[0]?.string_value === "string" ? values[0].string_value : "";
+      if (xml) {
+        state.urdfSources.xela.robotDescriptionXml = xml;
+      }
+      return;
+    }
+    if (msg.op === "service_response" && typeof msg.service === "string") {
+      taxelSessionPanel?.handleServiceResponse(msg.service, msg.values || {});
+      return;
+    }
+    if (msg.op !== "publish") return;
+    if (msg.topic === "/xvizdg5f/tf" || msg.topic === "/xvizdg5f/tf_static") {
+      applyTfMessage(msg.msg);
+      return;
+    }
+    if (msg.topic === "/x_taxel_dg5f/web_state" && msg.msg) {
+      try {
+        latestPayload = JSON.parse(msg.msg.data);
+        lastReceivedMs = performance.now();
+      } catch (_) { /* ignore malformed payload */ }
+      return;
+    }
+    if (msg.topic === "/atag/grasp_event" && msg.msg) {
+      const data = msg.msg.data;
+      if (typeof data === "string") {
+        try {
+          const evt = JSON.parse(data);
+          const tipForces = computeTipForcesN(latestPayload);
+          operatorStatusBar.onGraspEvent(evt);
+          operatorAlertCards.onGraspEvent(evt, tipForces);
+          if (taxelSessionPanel?.isLive?.()) {
+            operatorFilmstrip.onGraspEvent(evt, performance.now());
+          }
+        } catch (err) {
+          console.warn("[xela-taxel-operator-dg5f] failed to parse /atag/grasp_event:", err);
+        }
+      }
+      return;
+    }
+    if (msg.topic === "/xela_atag_taxel_viewer_node/live_module_data" && msg.msg) {
+      const data = msg.msg.data;
+      if (typeof data === "string" && taxelSessionPanel) {
+        try {
+          taxelSessionPanel.pushLiveModuleData(JSON.parse(data));
+        } catch (_) { /* ignore malformed live payload */ }
+      }
+    }
+  },
+});
+
+const taxelSessionPanel = createTaxelSessionPanel({
+  container: document.getElementById("graphHost"),
+  sendServiceRequest: (serviceName, args) => rosbridgeClient.sendServiceRequest(serviceName, args),
+  moduleNames: DG5F_MODULE_NAMES,
+});
+
+async function main() {
+  const ok = await meshRenderer.ensureRuntime();
+  if (!ok) {
+    setConnStatus("3D runtime init failed", false);
+    return;
+  }
+  rosbridgeClient.connect();
+
+  let lastHealthPaintMs = 0;
+  function tick(nowMs) {
+    renderFromLatestPayload();
+    operatorFilmstrip?.tick(nowMs);
+    if ((nowMs - lastHealthPaintMs) >= 120) {
+      lastHealthPaintMs = nowMs;
+      const ageMs = lastReceivedMs > 0 ? (nowMs - lastReceivedMs) : NaN;
+      operatorStatusBar.updateHealth({ ageMs, staleMs: 3000, rosbridgeConnected });
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+main().catch((err) => {
+  setConnStatus("init error", false);
+  console.error(err);
+});
+</script>
+</body>
+</html>
