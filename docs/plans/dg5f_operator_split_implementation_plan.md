@@ -500,7 +500,7 @@ Phase 0~3.5(Admin/Operator 동시 기동+기능 이식+상태바/레이아웃 �
 
 ---
 
-## Phase 6 — 운영자 화면 UX 개선 (데모/모니터링 목적, 2026-09-11 계획 수립) — 미착수, Phase 4/5 마무리 후 진행
+## Phase 6 — 운영자 화면 UX 개선 (데모/모니터링 목적, 2026-09-11 계획 수립) — ✅ 완료 (2026-09-11, 실측 검증 포함)
 
 **배경**: 분리 목적 자체("Admin/Operator 역할 명확 분리")는 Phase 0~4로 달성됨. Phase 6은 그 위에 사용자(운영 전문가 관점)가 요청한 신규 기능 3건 — 이번 분리 프로젝트의 원 스코프 밖이라 별도 Phase로 분리해서 진행. 대상 파일은 전부 `xela_taxel_operator_dg5f/web/index.html`(및 필요시 이 패키지 안 CSS/JS)뿐 — `xela_taxel_sidecar_dg5f`/baseline 무수정 원칙은 계속 유지.
 
@@ -549,6 +549,68 @@ Phase 0~3.5(Admin/Operator 동시 기동+기능 이식+상태바/레이아웃 �
 
 사용자 결정으로 이번 Phase에서 제외.
 
+### 실제 구현 내역 (2026-09-11)
+
+전부 `xela_taxel_operator_dg5f/web/index.html` 한 파일에만 구현(CSS 인라인 `<style>` + 모듈 스크립트 하단 "Phase 6" 블록). `xela_taxel_sidecar_dg5f`/`xela_atag_taxel_viewer`/baseline 4개 패키지는 무수정.
+
+- **6-1 Kiosk/Lock**: `#topBarRow`(상태바 + 신규 컨트롤 그룹)를 새로 추가하고 그 안에 `Lock/Unlock` 버튼 배치. 잠금 시 `body.op6-locked` 클래스 부여 → `#modulesHost`/`#vizControlsHost`/`#graphHost`에 `pointer-events:none; opacity:0.45` CSS로 차단(별도 오버레이 DOM 없이 CSS만으로 처리, 검증상 동일 효과). 카메라 잠금은 매 렌더 프레임(`renderFromLatestPayload`)에서 `state.urdfMesh.controls.enabled = !uiLocked`로 강제. `localStorage`(`xela_dg5f_operator_locked`) 저장/복원.
+- **6-2 Reset Demo**: 버튼 클릭 시 `operatorAlertCards`/`operatorFilmstrip`를 baseline 팩토리 함수로 재생성(두 위젯 모두 reset API가 없어 컨테이너를 비우고 다시 생성하는 방식 — baseline 파일은 건드리지 않음), `taxelSessionPanel.clearLocalBuffer()`를 `isCapturing()`이 false일 때만 호출. rosbridge 연결/구독 자체는 손대지 않음.
+- **6-3 임계값+이벤트 강조**: 상태바 옆 톱니바퀴(⚙) 버튼으로 여는 설정 패널에 3개 지표(force_total/shear_mag_avg/shear_normal_ratio) 숫자 입력 필드 + `grasp_event` 하위 11종 타입 체크박스 목록(`ALL_GRASP_EVENT_KINDS`/`getKindDisplayInfo` — `xela_atag_taxel_viewer`의 `operator_alert_cards.js`에서 그대로 import, 별도 목록 재작성 없이 실제 코드가 인식하는 전수 목록을 그대로 사용: grasp_start/contact_detected/grasp_fail/transport_start/transport_complete/drop/slip/recovery/release/task_complete/recovery_complete). 임계값 검사는 `/xela_atag_taxel_viewer_node/live_module_data` 핸들러에서 매 모듈 payload마다 `enabledModuleIds`(상단 툴바 선택 모듈)로 필터링 후 수행(모듈당 지표당 4초 쿨다운 적용, 과도한 반복 flash 방지). 이벤트 강조는 기존 `/atag/grasp_event` 핸들러에 한 줄(`op6CheckEventHighlight(evt)`) 추가. 알림 표시는 상태바 flash(box-shadow 애니메이션, 경고=노랑/이벤트=청록 구분) + `.operator-viz-row`(`#mainViewCol`) 우상단 인라인 SVG 카드(경고=팔각형 표지판, 이벤트=사각 피켓) + `operatorAlertCards.onGraspEvent()` 재사용으로 Alerts 카드에도 기록. 카드는 큐(`op6CardQueue`)로 순차 처리(동시 표시 없음, 각 4초 후 자동 제거).
+
+### 검증 결과 (2026-09-11, Playwright headless + `ur7e_xdg5f_atag_right_sim_dev` 실기동)
+
+- 6-1: Lock 클릭 → 모듈 체크박스/뷰컨트롤 클릭이 타임아웃(= pointer-events 차단 확인), 카메라 드래그도 무반응(에러 없이 무시) 확인. Unlock 후 동일 체크박스/버튼 클릭 정상 동작 복귀 확인. Lock 상태에서 새로고침 후 잠금 유지, storage 값(`"1"`) 확인.
+- 6-2: `#alertsHost`/`#filmstripHost`에 항목이 쌓인 상태에서 Reset Demo 클릭 → DOM이 초기 상태(위젯 재생성 직후 빈 상태)로 복귀, 이후 새 grasp_event 주입 시 정상적으로 다시 카드가 쌓이는 것 확인(구독이 깨지지 않음).
+- 6-3: `/xela_atag_taxel_viewer_node/live_module_data`·`/atag/grasp_event`에 rosbridge(9092)로 직접 synthetic 메시지를 주입(로봇 자체는 건드리지 않는 순수 UI/이벤트 토픽)해 검증 — 선택된 모듈(F2 ft) 초과 시 오버레이 카드+상태바 flash+Alerts 기록 동시 발생, 미선택 모듈(F1) 초과는 무시됨, 설정 패널에서 이벤트 타입 미체크 시 Alerts에는 기록되지만 오버레이/flash는 발생 안 함, 체크 시 오버레이 발생, 3개 이벤트를 연속 주입해도 오버레이 DOM이 동시에 1개를 초과하지 않고 순차 처리됨을 폴링으로 확인. (참고: 브라우저에서 새 rosbridge advertiser로 주입한 첫 메시지는 DDS discovery 지연으로 실제 도달까지 ~2초 걸림 — 실제 로봇 노드가 이미 상시 advertise 중인 운영 환경에서는 해당되지 않는, 테스트 하네스 고유의 지연.)
+- 회귀 없음: 모듈 체크박스↔그래프 동기화, Sensitivity/Graphs 토글, Live On/Off, `#connOverlay` connected 상태 전부 기존과 동일하게 동작 확인.
+- baseline 무수정: `git status`/`git diff`로 `xela_taxel_sidecar_dg5f`, `xela_atag_taxel_viewer`, `ur7e_xdg5f_atag_right_sim`, `ur7e_xdg5f_atag_right_common` 전부 clean 확인. 변경 파일은 `xela_taxel_operator_dg5f/web/index.html` 단 하나.
+
+### 구현 중 확정한 세부 판단
+
+- **이벤트 타입 기본 체크 상태**: 명세에 명시 안 됨 → 기본값 전부 미체크(opt-in)로 결정. 데모 시작 시 알림 폭주를 피하고, 필요한 것만 골라 켜는 편이 데모 진행자 입장에서 더 예측 가능하다고 판단.
+- **grasp_event 하위 타입 전수 목록**: 문서에서 요청한 대로 `handleRosbridgeMessage`/alerts 처리 코드를 직접 확인한 결과, `operator_alert_cards.js`의 `KIND_INFO`(= `ALL_GRASP_EVENT_KINDS`)가 11종(grasp_start/contact_detected/grasp_fail/transport_start/transport_complete/drop/slip/recovery/release/task_complete/recovery_complete)으로 이미 코드 상에 정의되어 있어 그대로 import해 재사용(하드코딩 중복 없음).
+- **임계값 UI 배치**: "상태바/Viz Controls 근처 숫자 입력" 요구를 톱니바퀴 아이콘 뒤 팝오버 패널로 구현(요구사항이 이벤트 체크박스도 톱니바퀴 패널에 넣도록 명시했으므로, 임계값 입력도 같은 패널에 묶어 UI 요소 수를 늘리지 않음). 3개 지표 각각 독립 입력 필드로 시작(공용 입력 하나로 시작하는 대안은 채택 안 함 — 세 지표의 스케일이 서로 달라 처음부터 분리하는 편이 안전판단).
+- **임계값 쿨다운**: 명세에 없지만, 임계값을 한 번 넘으면 매 프레임(약 10Hz) 계속 넘는 상태가 이어지는 경우 flash/카드가 초당 수회 반복 트리거되는 문제가 예상되어 모듈×지표별 4초 쿨다운을 추가(재논의 없이 구현 스케치의 "매 프레임 재사용" 의도를 유지하면서 실사용성만 보강).
+- **Reset Demo와 세션 Live 상태**: `clearLocalBuffer()`는 `isCapturing()`(파일로 캡처 중)만 가드하고 `isLive()`(실시간 표시 중)는 가드하지 않음 — 문서의 "그래프 버퍼 초기화(캡처 중이 아닐 때만)" 표현을 그대로 따름.
+
 ### 진행 시점
 
 Phase 4/5(성능 검증 마무리, 문서화/README, 커밋)를 먼저 완료한 뒤 별도 세션에서 착수.
+
+### 실사용 버그 리포트 2건 + 수정 (2026-09-11, 실측 기반)
+
+Phase 6 구현 직후 실사용 스크린샷으로 버그 2건이 접수되어 진단/수정함. 둘 다 `xela_taxel_operator_dg5f/web/index.html`만 수정, baseline 4개 패키지는 무수정.
+
+**버그 1 — Live On인데 그래프(f1_dg5f_ft 등)가 "no data yet"로 비어있음**:
+- **원인(실측 확정)**: Playwright `page.on('websocket')`으로 rosbridge 프레임을 직접 캡처해 확인. 상단 툴바에서 F1 ft, F2 ft 체크박스를 빠르게 연속 클릭(같은 이벤트 루프 tick 안에서, 실제 사용자가 두 모듈을 연이어 체크하는 것과 동일한 패턴)하면, 기존 `syncGraphModuleSelection()`(Phase 3 코드, Phase 6 이전부터 있던 로직)이 클릭마다 별도로 `change` 이벤트를 즉시 디스패치해 `taxel_session_panel.js`(baseline)의 `set_active_modules` ROS 서비스 호출이 **두 번 겹쳐서(overlapping)** 나갔음: 1차 `['f1_dg5f_ft']`, 2차 `['f1_dg5f_ft','f2_dg5f_ft']`. 8회 반복 실측 중 2~3회꼴로 두 응답이 **순서가 뒤바뀌어(out-of-order)** 도착했고, 그 경우 서버(`xela_atag_taxel_viewer_node.py`의 `_on_set_active_modules`, baseline이라 무수정)의 `self._active_modules = set(request.module_names)`가 "마지막에 처리된 요청"만 반영하는 단순 대입이라 두 번째 모듈이 서버의 active set에서 누락되고, 그 모듈의 카드는 영구히 "no data yet"으로 남았음(재현 스크립트: `~/tools/playwright-toolkit/diag_bugs_ws.js`, `diag_bugs_op6.js` — 순차 클릭 시 재현 안 됨, 동시 클릭 시에만 재현).
+- **수정**: `syncGraphModuleSelection()`에 `queueMicrotask` 기반 디바운스를 추가해, 같은 tick 안에서 발생한 여러 번의 호출을 **하나의 `change` 디스패치(= 하나의 `set_active_modules` 호출, 최종 병합된 모듈 목록 포함)**로 합침. 사람이 실제로 시차를 두고 클릭하는 경우는 기존과 동일하게 각각 호출됨 — 변경은 "동시 발생"만 병합.
+- **재검증**: 수정 후 프레임 인스트루먼트 스크립트로 8/8 성공(항상 `set_active_modules` 1회만 전송, `active_modules=['f1_dg5f_ft', 'f2_dg5f_ft']` 응답 확인), line/quiver 캔버스에 실제 픽셀 데이터 렌더링 확인.
+
+**버그 2 — 설정(⚙) 패널이 제목 한 줄만 보이는 작은 박스로 표시됨**:
+- **원인(실측 확정)**: `#op6SettingsPanel`이 `position: absolute`로 `#opControlsHost`(`#topBarRow`의 자식) 기준 배치돼 있었는데, `#topBarRow`는 `.full-width-row` 클래스를 공유해 `overflow-x: auto`가 걸려 있음. CSS overflow 스펙상 x/y 중 하나라도 `visible`이 아니면 다른 축도 강제로 `auto`로 계산되므로(`overflow-y:visible`을 명시해도 스펙에 의해 다시 `auto`로 강제됨 — 이 파일 자체의 그리드 트랙 코멘트에 이미 같은 함정이 기록돼 있었음), `#topBarRow`가 세로 스크롤/클리핑 컨테이너가 되어 그 아래로 확장되는 패널(339px)이 행 자신의 높이(37px)만 남기고 전부 잘려나감. Playwright로 `getComputedStyle(#topBarRow).overflowY === "auto"` 확인 + 스크린샷으로 패널이 통째로 안 보이는 것(입력/체크박스 DOM 자체는 정상 존재, `getBoundingClientRect`상 레이아웃 크기도 정상 — 순수 시각적 클리핑) 확인.
+- **수정**: `#op6SettingsPanel`을 `position: fixed`로 변경(오버플로 클리핑 체인에서 탈출), 여닫을 때 JS에서 `op6GearBtn.getBoundingClientRect()`로 `top`/`right`를 계산해 인라인으로 지정.
+- **재검증**: 스크린샷으로 패널이 3개 임계값 입력 필드 + 11개 이벤트 체크박스(스크롤 가능) 전부 표시/클릭 가능함을 확인.
+
+**회귀 검증**: `phase6_check.js` 재실행 — Lock/Unlock(잠금 시 클릭 차단, 카메라 무반응, 새로고침 후 유지), Reset Demo(필름스트립/알림카드 초기화 후 재구독 정상), 설정 패널 열기/임계값 입력/이벤트 체크박스, `connOverlay: connected`, Sensitivity/Graphs 토글 전부 기존과 동일하게 동작. 콘솔 에러 없음.
+
+**baseline 무수정 확인**: `git status` — `xela_taxel_sidecar_dg5f`/`xela_atag_taxel_viewer`/`ur7e_xdg5f_atag_right_sim`/`ur7e_xdg5f_atag_right_common` 전부 clean. 변경 파일은 `xela_taxel_operator_dg5f/web/index.html`만.
+
+### 사용성 미세조정 2건 (2026-09-12)
+
+- **이벤트 피켓 카드에서 "EVENT" 타이틀 제거**: 사용자 피드백 — 피켓 카드에 "EVENT"라는 제목과 실제 이벤트 내용(예: "Contact Confirmed")이 둘 다 나오는 게 불필요하니 이벤트 내용만 바로 보이게 해달라는 요청. `op6BuildCardSvg()`를 title이 빈 문자열이면 단일 텍스트 라인만(수직 중앙 정렬) 그리도록 수정, `op6CheckEventHighlight()`의 호출을 `op6TriggerAlert("event", "EVENT", info.label)` → `op6TriggerAlert("event", "", info.label)`로 변경. threshold(경고 표지판) 카드는 기존 title+sub 2줄 구조 그대로 유지.
+- **Lock 모드에서 그래프(Live) 섹션이 흐려지는 문제**: 사용자 피드백 — Kiosk/Lock 시 `#graphHost`도 다른 컨트롤(모듈 체크박스, Viz Controls)과 함께 `opacity:0.45`로 어두워졌는데, 그래프는 잠금 중에도 계속 밝게 보여야 한다는 요청. CSS 규칙을 분리해서 `#modulesHost`/`#vizControlsHost`는 기존대로 `pointer-events:none`+`opacity:0.45`, `#graphHost`는 `pointer-events:none`만 적용(밝기는 그대로, 클릭만 계속 차단).
+
+두 수정 모두 `xela_taxel_operator_dg5f/web/index.html` CSS/JS 소규모 변경, baseline 무수정.
+
+---
+
+## 남은 선택 과제 (버그 아님, 다음 세션 우선순위 결정용 목록)
+
+이번 프로젝트(Phase 0~6)는 전부 완료됐고, 아래는 시간/범위 제약으로 미룬 선택 사항들이다. 각 항목의 상세 배경은 해당 Phase 섹션 본문 참고.
+
+1. `ur7e_xdg5f_atag_right_sim`(baseline, `_dev` 아님)으로 별도 재기동해 8765/9090 통합 화면이 여전히 정상인지 재확인 — baseline 코드는 `git diff` 0줄로 무수정 확인됐으므로 회귀 위험은 낮음 (Phase 3.5)
+2. `SwitchController failed: enable_impedance=true ...` — `ur7e_xdg5f_atag_right_sim_dev`에서 pick-place objective 실행 시 그립 컨트롤러 전환이 매번 실패해 실제 파지가 완료되지 않는 문제. 성능 검증과 무관한 별개 기능 버그로 원인 미조사 (Phase 4)
+3. 실제 grasp 사이클로 알림카드/필름스트립이 실제로 채워지는지 실측(현재는 코드 배선만 확인) (Phase 3 남은 이슈)
+4. MoveIt Pro Studio Visualization 패널을 직접 열어서 `operator_main_view_markers`(marker settings) 부재의 실제 영향 최종 확인 (Phase 3 남은 이슈)
+5. 세션 캡처 전체 사이클(Start→Stop→Load→CSV 다운로드)을 끝까지 실측 (Phase 3 남은 이슈)
+6. ah/2f(다른 손 모델)에도 동일한 코어 추출+운영자 전용 페이지 분리 패턴을 적용할지 — 이번 프로젝트 범위 밖, 별도 논의 필요 (Phase 5)

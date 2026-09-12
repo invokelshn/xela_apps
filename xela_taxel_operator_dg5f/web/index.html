@@ -58,9 +58,161 @@
        Operator-mode layout's actual (un-stretched) behavior. */
     align-content: start;
   }
-  #statusBarHost {
+  #topBarRow {
     grid-row: 1;
   }
+  #statusBarHost {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* Phase 6 (2026-09-11): Lock/Reset/Settings controls, added only to this page (baseline
+     xela_taxel_sidecar_dg5f / xela_atag_taxel_viewer packages are NOT touched). */
+  #opControlsHost {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    position: relative;
+  }
+  .op6-btn {
+    cursor: pointer;
+    padding: 5px 12px;
+    border-radius: 100px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.04);
+    font: 12px sans-serif;
+    color: inherit;
+  }
+  .op6-btn:hover { background: rgba(255,255,255,0.09); }
+  .op6-btn.op6-lock-on { border-color: #f87171; color: #f87171; }
+  /* Bug fix (2026-09-11, reported via screenshot): this panel used to be `position: absolute`
+     inside #opControlsHost, whose ancestor #topBarRow carries `.full-width-row`'s
+     `overflow-x: auto` rule (added 2026-09-11 for the grid-row auto-min-size fix, see that
+     rule's own comment above). Per the CSS overflow spec, when overflow-x and overflow-y differ
+     and neither is `visible`, the UA computes BOTH axes to non-visible -- so #topBarRow's
+     overflow-y silently became `auto` too, turning it into a vertical scroll/clip container.
+     Confirmed via Playwright: getComputedStyle(#topBarRow).overflowY === "auto" and the panel's
+     own layout box (getBoundingClientRect, 280x339 with all 3 threshold inputs + 11 event
+     checkboxes actually present in the DOM) extended ~339px below #topBarRow's own ~37px-tall
+     box -- a screenshot of the "open" panel showed nothing at all (fully clipped), matching the
+     user's "one title line, rest cut off" report exactly. Explicitly setting `overflow-y:
+     visible` on #topBarRow does NOT fix this -- the spec forces it back to `auto` as long as
+     overflow-x stays non-visible, which #topBarRow's row-collapse fix still needs. Switching
+     this panel to `position: fixed` (positioned in JS from the gear button's own
+     getBoundingClientRect(), see op6GearBtn's click handler below) escapes that containing
+     block chain entirely -- fixed-position elements are clipped only by ancestors using
+     transform/filter/perspective/contain, none of which are present here -- so the panel now
+     paints on top of everything, unclipped, regardless of #topBarRow's own overflow/scroll
+     state. */
+  #op6SettingsPanel {
+    display: none;
+    position: fixed;
+    z-index: 20;
+    width: 280px;
+    background: #1a1f29;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  #op6SettingsPanel.open { display: block; }
+  #op6SettingsPanel h4 {
+    margin: 0 0 6px 0;
+    font-size: 12px;
+    opacity: 0.7;
+    font-weight: 600;
+  }
+  #op6SettingsPanel .op6-thresh-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  #op6SettingsPanel .op6-thresh-row input {
+    width: 80px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 4px;
+    color: inherit;
+    font: inherit;
+    padding: 2px 6px;
+  }
+  #op6SettingsPanel .op6-evt-list {
+    max-height: 180px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 4px;
+  }
+  #op6SettingsPanel .op6-evt-list label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  #op6SettingsPanel hr {
+    border: none;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    margin: 10px 0;
+  }
+
+  /* Kiosk/Lock mode: disable pointer interaction + dim the locked control groups. Camera
+     lock is enforced separately in JS via OrbitControls.enabled.
+     #graphHost is intentionally excluded from the dimming (opacity stays at 1) -- it hosts the
+     Live-data graphs operators need to keep reading at full brightness while locked; it still
+     gets pointer-events:none so its controls can't be clicked. */
+  body.op6-locked #modulesHost,
+  body.op6-locked #vizControlsHost {
+    pointer-events: none;
+    opacity: 0.45;
+    position: relative;
+  }
+  body.op6-locked #graphHost {
+    pointer-events: none;
+    position: relative;
+  }
+  body.op6-locked #mainViewCol {
+    cursor: not-allowed;
+  }
+
+  /* Status-bar flash on threshold/event alert (2026-09-11). */
+  @keyframes op6Flash {
+    0%, 100% { box-shadow: none; }
+    50% { box-shadow: inset 0 0 0 2px var(--op6-flash-color, #fbbf24); }
+  }
+  #statusBarHost.op6-flash-warn { animation: op6Flash 0.5s ease-in-out 2; --op6-flash-color: #fbbf24; }
+  #statusBarHost.op6-flash-event { animation: op6Flash 0.5s ease-in-out 2; --op6-flash-color: #3ecfcf; }
+
+  /* Overlay sign/picket cards, top-right of .operator-viz-row (over #mainViewCol). */
+  .op6-overlay-card {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    width: 190px;
+    pointer-events: none;
+    filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));
+    animation: op6CardInOut 4s ease-in-out forwards;
+  }
+  @keyframes op6CardInOut {
+    0% { opacity: 0; transform: translateY(-8px); }
+    8% { opacity: 1; transform: translateY(0); }
+    88% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-8px); }
+  }
+  .op6-overlay-card text {
+    font: 700 13px sans-serif;
+    fill: #12151b;
+  }
+  .op6-overlay-card .op6-card-sub {
+    font: 600 10.5px sans-serif;
+    fill: #12151b;
+  }
+
   .full-width-row {
     display: flex;
     flex-wrap: wrap;
@@ -295,7 +447,23 @@
 </head>
 <body>
 <div id="app">
-  <div id="statusBarHost"></div>
+  <div id="topBarRow" class="full-width-row">
+    <div id="statusBarHost"></div>
+    <div id="opControlsHost">
+      <button id="op6ResetBtn" class="op6-btn" type="button" title="Clear filmstrip/alerts/graph buffers">Reset Demo</button>
+      <button id="op6LockBtn" class="op6-btn" type="button">🔓 Unlock</button>
+      <button id="op6GearBtn" class="op6-btn" type="button" title="Alert settings">⚙</button>
+      <div id="op6SettingsPanel">
+        <h4>Alert Thresholds (selected modules only)</h4>
+        <div class="op6-thresh-row"><span>force_total &gt;</span><input type="number" step="0.1" id="op6ThreshForceTotal" placeholder="off"></div>
+        <div class="op6-thresh-row"><span>shear_mag_avg &gt;</span><input type="number" step="0.1" id="op6ThreshShearMag" placeholder="off"></div>
+        <div class="op6-thresh-row"><span>shear_normal_ratio &gt;</span><input type="number" step="0.1" id="op6ThreshShearRatio" placeholder="off"></div>
+        <hr>
+        <h4>Highlight grasp_event types</h4>
+        <div class="op6-evt-list" id="op6EventList"></div>
+      </div>
+    </div>
+  </div>
   <div class="full-width-row" style="grid-row: 2;">
     <div id="vizControlsHost"></div>
     <div id="modulesHost"></div>
@@ -354,7 +522,11 @@ import { forceColorRgb } from "/pkg/xela_taxel_viz_core/web/js/render/primitives
 import { createOperatorStatusBar } from "/pkg/xela_atag_taxel_viewer/web/js/operator/operator_status_bar.js";
 import { createOperatorModuleSelect } from "/pkg/xela_atag_taxel_viewer/web/js/operator/operator_module_select.js";
 import { createOperatorVizControls } from "/pkg/xela_atag_taxel_viewer/web/js/operator/operator_viz_controls.js";
-import { createOperatorAlertCards } from "/pkg/xela_atag_taxel_viewer/web/js/operator/operator_alert_cards.js";
+import {
+  createOperatorAlertCards,
+  ALL_GRASP_EVENT_KINDS,
+  getKindDisplayInfo,
+} from "/pkg/xela_atag_taxel_viewer/web/js/operator/operator_alert_cards.js";
 import { createOperatorFilmstrip } from "/pkg/xela_atag_taxel_viewer/web/js/operator/operator_filmstrip.js";
 import { createTaxelSessionPanel } from "/pkg/xela_atag_taxel_viewer/web/js/session/taxel_session_panel.js";
 
@@ -494,6 +666,7 @@ async function renderFromLatestPayload() {
   const m = state.urdfMesh;
   if (!m.ready) return;
   meshRenderer.resize();
+  if (m.controls) m.controls.enabled = !uiLocked;
   taxelRenderer.bindActiveUrdfSourceToMesh();
   bindRobotDescriptionToMesh();
   if (!m.robotBuilt && m.robotDescriptionXml) {
@@ -537,8 +710,8 @@ function setGraphsShown(show) {
 
 // -- Operator widgets (xela_atag_taxel_viewer, unmodified) --------------------------------
 const operatorStatusBar = createOperatorStatusBar({ container: document.getElementById("statusBarHost") });
-const operatorAlertCards = createOperatorAlertCards({ container: document.getElementById("alertsHost") });
-const operatorFilmstrip = createOperatorFilmstrip({
+let operatorAlertCards = createOperatorAlertCards({ container: document.getElementById("alertsHost") });
+let operatorFilmstrip = createOperatorFilmstrip({
   container: document.getElementById("filmstripHost"),
   getCanvas: () => urdf3dLayer.querySelector("canvas"),
 });
@@ -551,6 +724,29 @@ const operatorFilmstrip = createOperatorFilmstrip({
 // session panel's own onModuleSelectionChanged() (which calls setActiveModules and rebuilds the
 // per-module cards) as the single place that actually reacts to the selection, rather than
 // reimplementing that logic here.
+// Bug fix (2026-09-11, reported via screenshot: F1/F2 ft checked + Live On, but one module's
+// graph card stayed stuck on "no data yet" forever). Root cause (confirmed empirically, not
+// guessed): checking two top-toolbar module checkboxes back-to-back within the same tick (the
+// natural way to select "F1 ft" then "F2 ft" quickly) used to call this function twice
+// synchronously -- once per checkbox -- and each call immediately dispatched its own "change"
+// event, which taxel_session_panel.js's onModuleSelectionChanged() answers with its own
+// `set_active_modules` ROS service call (baseline xela_atag_taxel_viewer, unmodified). That
+// fired two overlapping service calls in immediate succession
+// (module_names:['f1_dg5f_ft'] then ['f1_dg5f_ft','f2_dg5f_ft']). Captured via Playwright's
+// page.on('websocket') frame log across repeated runs: the two service_response frames
+// sometimes arrived out of order, and in ~1/3 of repeated trials the SECOND module's card
+// never received any live samples afterwards (state.activeModules on the server ended up
+// reflecting only the single-module request) -- reproducible via
+// ~/tools/playwright-toolkit/diag_bugs_op6.js/_ws.js, not present when the two checkbox clicks
+// are staggered by >=500ms. Fix: coalesce any number of same-tick calls into a single dispatch
+// (via queueMicrotask, which runs after the synchronous click-handling for all of this tick's
+// checkbox toggles has already updated their `.checked` state, but before anything else in the
+// event loop) so only ONE "change" event -- and therefore one `set_active_modules` service call,
+// carrying the final complete module set -- goes out per burst of rapid toggles. A normal
+// human click-then-click still produces two calls spaced apart in real time, same as before;
+// only genuinely-simultaneous toggles (rapid top-toolbar clicking, or programmatic multi-select)
+// get merged.
+let op6SyncDispatchPending = false;
 function syncGraphModuleSelection(names) {
   const checkboxes = document.querySelectorAll("#graphHost [data-module-checkbox]");
   if (!checkboxes || checkboxes.length === 0) return;
@@ -562,9 +758,12 @@ function syncGraphModuleSelection(names) {
       anyChanged = true;
     }
   });
-  if (anyChanged) {
+  if (!anyChanged || op6SyncDispatchPending) return;
+  op6SyncDispatchPending = true;
+  queueMicrotask(() => {
+    op6SyncDispatchPending = false;
     checkboxes[0].dispatchEvent(new Event("change", { bubbles: true }));
-  }
+  });
 }
 
 const operatorModuleSelect = createOperatorModuleSelect({
@@ -645,6 +844,7 @@ const rosbridgeClient = createRosbridgeClient({
           if (taxelSessionPanel?.isLive?.()) {
             operatorFilmstrip.onGraspEvent(evt, performance.now());
           }
+          op6CheckEventHighlight(evt);
         } catch (err) {
           console.warn("[xela-taxel-operator-dg5f] failed to parse /atag/grasp_event:", err);
         }
@@ -655,8 +855,12 @@ const rosbridgeClient = createRosbridgeClient({
       const data = msg.msg.data;
       if (typeof data === "string" && taxelSessionPanel) {
         try {
-          taxelSessionPanel.pushLiveModuleData(JSON.parse(data));
-        } catch (_) { /* ignore malformed live payload */ }
+          const modulePayloads = JSON.parse(data);
+          taxelSessionPanel.pushLiveModuleData(modulePayloads);
+          if (Array.isArray(modulePayloads)) {
+            for (const p of modulePayloads) op6CheckThresholds(p);
+          }
+        } catch (err) { console.warn("[xela-taxel-operator-dg5f] live_module_data handling failed:", err); }
       }
     }
   },
@@ -667,6 +871,202 @@ const taxelSessionPanel = createTaxelSessionPanel({
   sendServiceRequest: (serviceName, args) => rosbridgeClient.sendServiceRequest(serviceName, args),
   moduleNames: DG5F_MODULE_NAMES,
 });
+
+// ============================================================================================
+// Phase 6 -- operator UX additions (6-1 Kiosk/Lock, 6-2 Reset Demo, 6-3 threshold/event alerts).
+// Scoped entirely to this file; xela_taxel_sidecar_dg5f / xela_atag_taxel_viewer are untouched.
+// ============================================================================================
+
+// -- 6-1: Kiosk/Lock mode ------------------------------------------------------------------
+const OP6_LOCK_STORAGE_KEY = "xela_dg5f_operator_locked";
+const op6LockBtn = document.getElementById("op6LockBtn");
+let uiLocked = false;
+try { uiLocked = localStorage.getItem(OP6_LOCK_STORAGE_KEY) === "1"; } catch (_) { /* ignore */ }
+
+function applyLockUi() {
+  document.body.classList.toggle("op6-locked", uiLocked);
+  op6LockBtn.textContent = uiLocked ? "🔒 Lock" : "🔓 Unlock";
+  op6LockBtn.classList.toggle("op6-lock-on", uiLocked);
+  const controls = state.urdfMesh?.controls;
+  if (controls) controls.enabled = !uiLocked;
+}
+op6LockBtn.addEventListener("click", () => {
+  uiLocked = !uiLocked;
+  try { localStorage.setItem(OP6_LOCK_STORAGE_KEY, uiLocked ? "1" : "0"); } catch (_) { /* ignore */ }
+  applyLockUi();
+});
+applyLockUi();
+
+// -- 6-2: Reset Demo ------------------------------------------------------------------------
+// Baseline widgets (xela_atag_taxel_viewer) have no reset API for filmstrip/alert-card state,
+// so they're simply re-created against the same (already-emptied-by-their-own-constructor)
+// container element rather than modifying those files. taxelSessionPanel DOES expose
+// clearLocalBuffer(), used directly, guarded by isCapturing() per the plan (never wipe a
+// buffer that's mid file-capture).
+document.getElementById("op6ResetBtn").addEventListener("click", () => {
+  operatorAlertCards = createOperatorAlertCards({ container: document.getElementById("alertsHost") });
+  operatorFilmstrip = createOperatorFilmstrip({
+    container: document.getElementById("filmstripHost"),
+    getCanvas: () => urdf3dLayer.querySelector("canvas"),
+  });
+  if (taxelSessionPanel && !taxelSessionPanel.isCapturing()) {
+    taxelSessionPanel.clearLocalBuffer();
+  }
+});
+
+// -- 6-3: Threshold + event-type alert settings panel --------------------------------------
+const op6GearBtn = document.getElementById("op6GearBtn");
+const op6SettingsPanel = document.getElementById("op6SettingsPanel");
+// Bug fix (2026-09-11): the panel is `position: fixed` now (see its CSS rule above for why --
+// #topBarRow's overflow-x:auto was silently clipping it when it was `position: absolute`), so
+// its top/right must be computed from the gear button's own viewport position on each open
+// instead of relying on a percentage-based `top: calc(100% + 6px); right: 0;` anchored to its
+// (no-longer-relevant) offset parent.
+function op6PositionSettingsPanel() {
+  const r = op6GearBtn.getBoundingClientRect();
+  op6SettingsPanel.style.top = `${r.bottom + 6}px`;
+  op6SettingsPanel.style.right = `${window.innerWidth - r.right}px`;
+}
+op6GearBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const opening = !op6SettingsPanel.classList.contains("open");
+  if (opening) op6PositionSettingsPanel();
+  op6SettingsPanel.classList.toggle("open");
+});
+document.addEventListener("click", (e) => {
+  if (!op6SettingsPanel.contains(e.target) && e.target !== op6GearBtn) {
+    op6SettingsPanel.classList.remove("open");
+  }
+});
+
+const op6ThreshInputs = {
+  force_total: document.getElementById("op6ThreshForceTotal"),
+  shear_mag_avg: document.getElementById("op6ThreshShearMag"),
+  shear_normal_ratio: document.getElementById("op6ThreshShearRatio"),
+};
+
+// Event types: ALL_GRASP_EVENT_KINDS enumerates every `kind` operator_alert_cards.js itself
+// recognizes (grasp_start/contact_detected/grasp_fail/transport_start/transport_complete/
+// drop/slip/recovery/release/task_complete/recovery_complete) -- the full "grasp_event 하위
+// 이벤트 타입" set observed in handleRosbridgeMessage's /atag/grasp_event handling. Default:
+// none pre-checked (opt-in highlighting, avoids alert spam out of the box).
+const op6SelectedEventKinds = new Set();
+const op6EventListEl = document.getElementById("op6EventList");
+for (const kind of ALL_GRASP_EVENT_KINDS) {
+  const info = getKindDisplayInfo(kind);
+  const label = document.createElement("label");
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.value = kind;
+  cb.addEventListener("change", () => {
+    if (cb.checked) op6SelectedEventKinds.add(kind);
+    else op6SelectedEventKinds.delete(kind);
+  });
+  label.appendChild(cb);
+  label.appendChild(document.createTextNode(info.label));
+  op6EventListEl.appendChild(label);
+}
+
+// Module label lookup (e.g. "f2_dg5f_ft" -> "F2 ft"), reusing the same grouping already
+// shown in the top toolbar's module-select widget.
+const op6ModuleLabel = new Map();
+for (const group of DG5F_OPERATOR_MODULE_GROUPS) {
+  for (const mod of group.modules) {
+    op6ModuleLabel.set(mod.key, `${group.label} ${mod.label}`);
+  }
+}
+
+// -- Overlay sign/picket cards + status-bar flash -------------------------------------------
+const op6CardQueue = [];
+let op6CardShowing = false;
+
+function op6BuildCardSvg(kind, title, sub) {
+  const isWarn = kind === "threshold";
+  const fill = isWarn ? "#fbbf24" : "#38bdf8";
+  const shapeSvg = isWarn
+    ? `<polygon points="95,4 178,46 178,124 95,166 12,124 12,46" fill="${fill}" stroke="#12151b" stroke-width="3"/>
+       <text x="95" y="30" text-anchor="middle">⚠</text>`
+    : `<rect x="6" y="10" width="178" height="70" rx="10" fill="${fill}" stroke="#12151b" stroke-width="3"/>
+       <rect x="88" y="80" width="14" height="60" fill="${fill}" stroke="#12151b" stroke-width="2"/>`;
+  // When there's no separate title (event cards just show the event text itself,
+  // no redundant "EVENT" label -- see op6CheckEventHighlight below), center the
+  // single line of text in the shape instead of splitting into title+sub rows.
+  const titleText = title
+    ? `<text x="95" y="${isWarn ? 70 : 38}" text-anchor="middle">${title}</text>
+       <text x="95" y="${isWarn ? 92 : 60}" text-anchor="middle" class="op6-card-sub">${sub}</text>`
+    : `<text x="95" y="${isWarn ? 88 : 50}" text-anchor="middle">${sub}</text>`;
+  return `<svg viewBox="0 0 190 170" xmlns="http://www.w3.org/2000/svg">
+      ${shapeSvg}
+      ${titleText}
+    </svg>`;
+}
+
+function op6ShowNextCard() {
+  if (op6CardShowing || op6CardQueue.length === 0) return;
+  const { kind, title, sub } = op6CardQueue.shift();
+  op6CardShowing = true;
+  const el = document.createElement("div");
+  el.className = "op6-overlay-card";
+  el.innerHTML = op6BuildCardSvg(kind, title, sub);
+  document.getElementById("mainViewCol").appendChild(el);
+  setTimeout(() => {
+    el.remove();
+    op6CardShowing = false;
+    op6ShowNextCard();
+  }, 4000);
+}
+
+function op6FlashStatusBar(kind) {
+  const host = document.getElementById("statusBarHost");
+  const cls = kind === "threshold" ? "op6-flash-warn" : "op6-flash-event";
+  host.classList.remove("op6-flash-warn", "op6-flash-event");
+  // eslint-disable-next-line no-unused-expressions
+  void host.offsetWidth; // restart animation if already flashing
+  host.classList.add(cls);
+  setTimeout(() => host.classList.remove(cls), 1100);
+}
+
+function op6TriggerAlert(kind, title, sub) {
+  op6FlashStatusBar(kind);
+  op6CardQueue.push({ kind, title, sub });
+  op6ShowNextCard();
+}
+
+// Threshold check: called from the live_module_data handler below, per module payload,
+// restricted to the top toolbar's currently-selected modules only.
+const op6LastAlertMs = new Map();
+const OP6_ALERT_COOLDOWN_MS = 4000; // avoid re-flashing every ~100ms tick while over threshold
+function op6CheckThresholds(modulePayload) {
+  const name = modulePayload?.module_name;
+  if (!name || !enabledModuleIds.has(name)) return;
+  for (const metric of ["force_total", "shear_mag_avg", "shear_normal_ratio"]) {
+    const rawThresh = op6ThreshInputs[metric].value;
+    if (rawThresh === "") continue;
+    const thresh = Number(rawThresh);
+    if (!Number.isFinite(thresh)) continue;
+    const value = Number(modulePayload[metric]);
+    if (!Number.isFinite(value) || Math.abs(value) <= thresh) continue;
+    const key = `${name}|${metric}`;
+    const nowMs = performance.now();
+    if (nowMs - (op6LastAlertMs.get(key) || 0) < OP6_ALERT_COOLDOWN_MS) continue;
+    op6LastAlertMs.set(key, nowMs);
+    const modLabel = op6ModuleLabel.get(name) || name;
+    op6TriggerAlert("threshold", "THRESHOLD", `${modLabel} ${metric} ${value.toFixed(1)}`);
+    operatorAlertCards.onGraspEvent({
+      stamp: Date.now() / 1000,
+      kind: "threshold_exceeded",
+      event: `${modLabel} ${metric} exceeded (${value.toFixed(2)} > ${thresh})`,
+    });
+  }
+}
+
+// Event-type highlight: called from the grasp_event handler below.
+function op6CheckEventHighlight(evt) {
+  const kind = String(evt?.kind || "").trim();
+  if (!kind || !op6SelectedEventKinds.has(kind)) return;
+  const info = getKindDisplayInfo(kind);
+  op6TriggerAlert("event", "", info.label);
+}
 
 async function main() {
   const ok = await meshRenderer.ensureRuntime();
