@@ -692,13 +692,14 @@
         <canvas id="sparkline" width="500" height="46"></canvas>
         <div id="eventTooltip" class="event-tooltip"></div>
       </div>
-      <!-- "Show Behavior Event" marker settings (renamed from "Show in Main View", moved here
-           2026-09-08 per user request) -- lives in the Admin screen now, right below the
-           norm_mean/fz_sum sparkline and right above the Live/Capture toolbar, i.e. no longer
-           Operator-only. Configuring it here now also makes markers publish regardless of
-           Admin/Operator mode (see the grasp_event handler's publishOperatorViewMarker call,
-           no longer gated by operator-active) -- filmstrip/alert-card capture are unaffected,
-           still Operator-only. -->
+      <!-- "Show Behavior Event" marker settings (2026-09-13 re-added, backend-driven this time):
+           publishing itself now happens in operator_view_marker_bridge_node.py, not here -- this
+           widget only edits that node's `enabled_kinds` set over
+           /operator_view_marker/set_enabled_kinds and reflects its current value from
+           /operator_view_marker/enabled_kinds_state (transient_local, so a freshly opened tab
+           gets the current selection immediately). The node persists the selection to a JSON
+           file and reloads it on its own startup, so it survives both this tab closing AND the
+           node itself restarting -- unlike the pre-2026-09-13 browser-only version. -->
       <div id="operatorMainViewMarkersHost"></div>
       <div id="taxelSessionPanelHost"></div>
     </div>
@@ -725,8 +726,7 @@
     import { createOperatorStatusBar } from "./js/operator/operator_status_bar.js";
     import { createOperatorModuleSelect } from "./js/operator/operator_module_select.js";
     import { createOperatorVizControls } from "./js/operator/operator_viz_controls.js";
-    import { createOperatorAlertCards, getKindDisplayInfo } from "./js/operator/operator_alert_cards.js";
-    import { createOperatorMainViewMarkerSettings } from "./js/operator/operator_main_view_markers.js";
+    import { createOperatorAlertCards, ALL_GRASP_EVENT_KINDS, getKindDisplayInfo } from "./js/operator/operator_alert_cards.js";
     import { createOperatorFilmstrip } from "./js/operator/operator_filmstrip.js";
 
     (() => {
@@ -1226,62 +1226,17 @@
         };
       }
 
-      // Text-only (no background box -- see plan doc "실측으로 확정된 사실" #8: a CUBE background
-      // is a real 3D object fixed to the hand frame, while TEXT_VIEW_FACING always billboards to
-      // face the camera, so the two visibly detach from each other as soon as the operator orbits
-      // the view; confirmed with screenshots, user opted to drop the box). scale=1.0 and the
-      // 0,0,0.20 offset off rl_dg_back_cover are both empirically-confirmed values (Phase 0).
+      // 2026-09-13: this frame constant is kept only because clearAllOperatorViewMarkerSlots
+      // (below) still needs it to build DELETE messages for markers the backend node published --
+      // the marker-BUILD path (buildOperatorViewMarker/hexToRgb01) was removed along with the
+      // browser-side publish call; see operator_view_marker_bridge_node.py for the live version.
       const OPERATOR_VIEW_MARKER_FRAME = "rl_dg_back_cover";
-      // Fallback only -- the real, user-adjustable value comes from
-      // operatorMainViewMarkerSettings.getOffset() (Phase 5, the "Offset from hand back" fields
-      // in the Operator panel's "Show in Main View" section).
-      const OPERATOR_VIEW_MARKER_DEFAULT_OFFSET = { x: -0.15, y: 0.0, z: 0.20 };
-      const OPERATOR_VIEW_MARKER_DEFAULT_STACK_SPACING = -0.10;
 
-      function buildOperatorViewMarker(evt, tipForcesN, slotIndex, markerId, offset, stackSpacing) {
-        const kind = String(evt?.kind || "").trim();
-        const info = getKindDisplayInfo(kind);
-        const f1N = Number(tipForcesN?.f1N);
-        const f2N = Number(tipForcesN?.f2N);
-        const forceParts = [];
-        if (Number.isFinite(f1N)) forceParts.push(`F1(thumb) ${f1N.toFixed(3)} N`);
-        if (Number.isFinite(f2N)) forceParts.push(`F2(index) ${f2N.toFixed(3)} N`);
-        const text = forceParts.length > 0 ? `${info.label}\n${forceParts.join(" · ")}` : info.label;
-
-        const colorRgb = hexToRgb01(info.color);
-
-        return {
-          header: { frame_id: OPERATOR_VIEW_MARKER_FRAME },
-          ns: "operator_view_marker",
-          id: markerId,
-          type: 9, // TEXT_VIEW_FACING
-          action: 0, // ADD
-          pose: {
-            position: {
-              // Stacking along x (2026-09-08 user preference) rather than z -- purely a
-              // direction choice for how consecutive cards fan out, unrelated to why x is the
-              // CUBE-background's "thin" axis elsewhere in this file (that box was dropped).
-              x: offset.x + stackSpacing * slotIndex,
-              y: offset.y,
-              z: offset.z,
-            },
-            orientation: { x: 0, y: 0, z: 0, w: 1 },
-          },
-          scale: { x: 1.0, y: 1.0, z: 1.0 },
-          color: { r: colorRgb.r, g: colorRgb.g, b: colorRgb.b, a: 1.0 },
-          text,
-          // Slot 0 (newest) gets a longer fade; older slots clear out sooner -- 2026-09-08 user
-          // feedback: back-to-back events stacking briefly reads fine, but once things settle
-          // down every card (including the newest) should eventually disappear on its own.
-          lifetime: { sec: operatorViewMarkerLifetimeMsFor(slotIndex) / 1000, nanosec: 0 },
-        };
-      }
-
-      function hexToRgb01(hex) {
-        const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex || ""));
-        if (!m) return { r: 1, g: 1, b: 1 };
-        return { r: parseInt(m[1], 16) / 255, g: parseInt(m[2], 16) / 255, b: parseInt(m[3], 16) / 255 };
-      }
+      // "Show Behavior Event" widget's channel to/from operator_view_marker_bridge_node.py --
+      // SET publishes the full desired kind list (any client can send one), STATE is what the
+      // node published transient_local last (its own persisted, currently-applied selection).
+      const SET_ENABLED_KINDS_TOPIC = "/operator_view_marker/set_enabled_kinds";
+      const ENABLED_KINDS_STATE_TOPIC = "/operator_view_marker/enabled_kinds_state";
 
       // Fixed-depth stack (newest first) of marker ids currently "live" in the Studio
       // Visualization panel -- same "fixed slot count, oldest falls off" shape as the filmstrip
@@ -1325,59 +1280,10 @@
       // No heartbeat (removed 2026-09-08 user feedback) -- every marker, including the newest,
       // now just fades on its own via `lifetime` once events stop arriving. Marker ids are tied
       // to the visual SLOT (700=nearest/newest .. 702=farthest/oldest), not to a particular
-      // event -- when an event ages into an older slot its content is simply republished
-      // (ADD == MODIFY for an existing id) at that slot's id and position, so nothing needs
-      // deleting in steady state; clearAllOperatorViewMarkerSlots (below) is only for an
-      // explicit "hide everything right now" (Operator mode exit).
-      function operatorViewMarkerLifetimeMsFor(slotIndex) {
-        return slotIndex === 0 ? 5000 : 2000;
-      }
-
-      // 2026-09-08 bug found via live testing: the JS-side slot array had no notion of a slot's
-      // content having already visually expired in Studio (each marker fades on its own via its
-      // `lifetime`, independent of this array) -- so an old event that had long since faded from
-      // view could still get shoved into a deeper slot and *republished* the next time any new
-      // event arrived, making it reappear for another `lifetime` window. Fix: stamp each slot
-      // with the wall-clock time it's due to expire, and drop (don't carry forward/republish)
-      // anything already past that when reshuffling.
-      function publishOperatorViewMarker(evt, tipForcesN) {
-        const kind = String(evt?.kind || "").trim();
-        if (!operatorMainViewMarkerSettings?.isEnabled(kind)) return;
-
-        const now = performance.now();
-        const stillAlive = operatorViewMarkerState.slots.filter((s) => s && s.expiresAtMs > now);
-        const nextContent = [{ evt, tipForcesN }, ...stillAlive].slice(0, OPERATOR_VIEW_MARKER_MAX_SLOTS);
-        const offset = operatorMainViewMarkerSettings?.getOffset() || OPERATOR_VIEW_MARKER_DEFAULT_OFFSET;
-        const stackSpacing = operatorMainViewMarkerSettings?.getStackSpacing() ?? OPERATOR_VIEW_MARKER_DEFAULT_STACK_SPACING;
-
-        const nextSlots = new Array(OPERATOR_VIEW_MARKER_MAX_SLOTS).fill(null);
-        for (let i = 0; i < nextContent.length; i++) {
-          const markerId = 700 + i;
-          const msg = buildOperatorViewMarker(nextContent[i].evt, nextContent[i].tipForcesN, i, markerId, offset, stackSpacing);
-          nextSlots[i] = {
-            evt: nextContent[i].evt,
-            tipForcesN: nextContent[i].tipForcesN,
-            markerId,
-            msg,
-            expiresAtMs: now + operatorViewMarkerLifetimeMsFor(i),
-          };
-          publishOperatorViewMarkerMsg(msg);
-        }
-        operatorViewMarkerState.slots = nextSlots;
-      }
-
-      // Lets the offset inputs (Phase 5) preview instantly against whatever's currently shown,
-      // instead of only taking effect on the next real event.
-      function republishOperatorViewMarkerSlotsWithLayout({ offset, stackSpacing }) {
-        for (let i = 0; i < OPERATOR_VIEW_MARKER_MAX_SLOTS; i++) {
-          const slot = operatorViewMarkerState.slots[i];
-          if (!slot) continue;
-          const msg = buildOperatorViewMarker(slot.evt, slot.tipForcesN, i, slot.markerId, offset, stackSpacing);
-          slot.msg = msg;
-          publishOperatorViewMarkerMsg(msg);
-        }
-      }
-
+      // event. clearAllOperatorViewMarkerSlots (below) is only for an explicit "hide everything
+      // right now" (Operator mode exit) -- the browser-side build/publish path that used to fill
+      // these slots was removed 2026-09-13 (see operator_view_marker_bridge_node.py), so this
+      // function now only ever clears markers the backend node published.
       function clearAllOperatorViewMarkerSlots() {
         for (let i = 0; i < OPERATOR_VIEW_MARKER_MAX_SLOTS; i++) {
           if (operatorViewMarkerState.slots[i]) {
@@ -2501,6 +2407,11 @@
         // Direct subscription for Operator mode -- web_state.meta.grasp_event alone can
         // silently drop back-to-back events (see operator_status_bar.js's header comment).
         subscribeRosTopic("/atag/grasp_event", 0, "std_msgs/msg/String");
+        // "Show Behavior Event" widget's live state, published transient_local by
+        // operator_view_marker_bridge_node.py -- subscribing here (not just on widget open)
+        // means a tab that's been open since before the node started still gets the current
+        // selection the moment it connects.
+        subscribeRosTopic(ENABLED_KINDS_STATE_TOPIC, 0, "std_msgs/msg/String");
         // live_module_data is subscribed on the dedicated taxelViewerRosbridgeClient connection
         // instead (see its creation below) -- not here on the /tf-heavy main connection.
         for (const src of Object.values(state.urdfSources)) {
@@ -3220,13 +3131,31 @@
               if (appEl.classList.contains("operator-active") && taxelSessionPanel?.isLive?.()) {
                 operatorFilmstrip?.onGraspEvent(evt, performance.now());
               }
-              // 2026-09-08: Main-View marker publishing is no longer Operator-only -- its
-              // "Show Behavior Event" settings widget moved into the Admin screen (see
-              // #operatorMainViewMarkersHost's new home in #statsRow), so a marker should
-              // publish whenever its kind is checked there regardless of which mode is showing.
-              publishOperatorViewMarker(evt, computeTipForcesN(state.payload));
+              // 2026-09-13: Main-View marker publishing moved OUT of the browser entirely, into
+              // operator_view_marker_bridge_node.py (xela_atag_taxel_viewer package) -- that node
+              // subscribes to /x_taxel_dg5f/web_state directly (grasp_event arrives embedded in
+              // its meta.grasp_event field) and publishes /visual_markers on its own, so the
+              // marker keeps appearing even with this page's tab fully closed. The call here is
+              // deliberately removed (not just disabled) to avoid a second publisher racing the
+              // backend node's on the same marker ids -- see
+              // project_dg5f_operator_view_marker_backend_migration.md for the before/after. The
+              // "Show Behavior Event" widget below now only edits that node's enabled-kinds
+              // selection (over SET_ENABLED_KINDS_TOPIC/ENABLED_KINDS_STATE_TOPIC) -- it no
+              // longer builds or publishes markers itself.
             } catch (err) {
               console.warn("[xela-sidecar] failed to parse /atag/grasp_event:", err);
+            }
+          }
+          return;
+        }
+
+        if (msg.topic === ENABLED_KINDS_STATE_TOPIC && msg.msg) {
+          const data = msg.msg.data;
+          if (typeof data === "string") {
+            try {
+              operatorMainViewMarkerSettings?.setEnabledKinds(JSON.parse(data));
+            } catch (err) {
+              console.warn("[xela-sidecar] failed to parse enabled_kinds_state:", err);
             }
           }
           return;
@@ -3282,6 +3211,10 @@
           requestRobotDescriptionViaService("robot", true);
           updateModeButtons();
           updateVectorModeButton();
+          rosbridgeClient.advertiseTopic(SET_ENABLED_KINDS_TOPIC, "std_msgs/msg/String");
+          // Still needed even though the browser no longer ADDs markers itself --
+          // clearAllOperatorViewMarkerSlots below still publishes DELETE messages here on
+          // Operator mode exit.
           rosbridgeClient.advertiseTopic("/visual_markers", "visualization_msgs/msg/MarkerArray");
         },
         onCloseOpened: () => {
@@ -3470,16 +3403,91 @@
           })
         : null;
 
+      // Renders one checkbox per known grasp_event kind; `onChange(kinds)` fires with the full
+      // checked-kind array on any toggle. `setEnabledKinds(kinds)` (returned) updates the
+      // checkboxes to reflect a value that arrived FROM the backend node, without re-firing
+      // onChange (which would just re-publish the same value back and forth).
+      function createEnabledKindsCheckboxes({ container, onChange }) {
+        container.innerHTML = "";
+        // Optimistic initial render only -- mirrors operator_view_marker_bridge_node.py's own
+        // DEFAULT_ENABLED_KINDS so there's no "everything unchecked" flash before the real,
+        // persisted value arrives moments later over ENABLED_KINDS_STATE_TOPIC (transient_local,
+        // so it arrives on connect even if the node set this long before the tab opened).
+        const DEFAULT_ENABLED_KINDS = new Set([
+          "contact_detected", "grasp_fail", "transport_complete", "drop", "slip", "task_complete",
+        ]);
+
+        const styleTag = document.createElement("style");
+        styleTag.textContent = `
+          .op-mvm { padding: 8px 14px; font-size: 12px; }
+          .op-mvm-title { font-weight: 600; opacity: 0.75; margin-bottom: 6px; }
+          .op-mvm-grid { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+          .op-mvm-item { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+          .op-mvm-item input { cursor: pointer; }
+        `;
+        container.appendChild(styleTag);
+
+        const root = document.createElement("div");
+        root.className = "op-mvm";
+        container.appendChild(root);
+
+        const title = document.createElement("div");
+        title.className = "op-mvm-title";
+        title.textContent = "Show Behavior Event";
+        root.appendChild(title);
+
+        const grid = document.createElement("div");
+        grid.className = "op-mvm-grid";
+        root.appendChild(grid);
+
+        const checkboxByKind = {};
+        for (const kind of ALL_GRASP_EVENT_KINDS) {
+          const label = document.createElement("label");
+          label.className = "op-mvm-item";
+
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.checked = DEFAULT_ENABLED_KINDS.has(kind);
+          checkbox.addEventListener("change", () => {
+            onChange(ALL_GRASP_EVENT_KINDS.filter((k) => checkboxByKind[k].checked));
+          });
+          checkboxByKind[kind] = checkbox;
+
+          const text = document.createElement("span");
+          text.textContent = getKindDisplayInfo(kind).label;
+
+          label.appendChild(checkbox);
+          label.appendChild(text);
+          grid.appendChild(label);
+        }
+
+        return {
+          setEnabledKinds(kinds) {
+            const enabled = new Set(Array.isArray(kinds) ? kinds : []);
+            for (const kind of ALL_GRASP_EVENT_KINDS) {
+              checkboxByKind[kind].checked = enabled.has(kind);
+            }
+          },
+        };
+      }
+
       const operatorAlertsHost = document.getElementById("operatorAlertsHost");
       const operatorAlertCards = operatorAlertsHost
         ? createOperatorAlertCards({ container: operatorAlertsHost })
         : null;
 
+      // "Show Behavior Event": edits operator_view_marker_bridge_node.py's persisted
+      // enabled-kinds selection (see SET_ENABLED_KINDS_TOPIC/ENABLED_KINDS_STATE_TOPIC above).
+      // Publishing the marker itself happens entirely in that backend node now -- this widget
+      // is just a remote control for its config, so any number of tabs (or none) can be open
+      // and the node keeps using whatever was last set.
       const operatorMainViewMarkersHost = document.getElementById("operatorMainViewMarkersHost");
       const operatorMainViewMarkerSettings = operatorMainViewMarkersHost
-        ? createOperatorMainViewMarkerSettings({
+        ? createEnabledKindsCheckboxes({
             container: operatorMainViewMarkersHost,
-            onLayoutChange: republishOperatorViewMarkerSlotsWithLayout,
+            onChange: (kinds) => {
+              rosbridgeClient.publishTopic(SET_ENABLED_KINDS_TOPIC, { data: JSON.stringify(kinds) });
+            },
           })
         : null;
 
