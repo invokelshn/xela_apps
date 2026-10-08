@@ -83,8 +83,8 @@ export function createRosbridgeClient({
       state.connected = true;
       state.activeWsUrl = wsUrl;
       setStatus("Connected", true);
-      for (const [topic, type] of desiredAdvertisements) {
-        sendAdvertise(topic, type);
+      for (const [topic, { type, latch }] of desiredAdvertisements) {
+        sendAdvertise(topic, type, latch);
       }
       if (typeof onOpen === "function") {
         onOpen(wsUrl, ws);
@@ -148,18 +148,27 @@ export function createRosbridgeClient({
     state.ws.send(JSON.stringify(req));
   }
 
-  function sendAdvertise(topic, type) {
+  function sendAdvertise(topic, type, latch) {
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
       return;
     }
-    state.ws.send(JSON.stringify({ op: "advertise", topic, type }));
+    const msg = { op: "advertise", topic, type };
+    if (latch) {
+      msg.latch = true;
+    }
+    state.ws.send(JSON.stringify(msg));
   }
 
   // Registers `topic` for outbound publishing. Safe to call once at startup -- the advertisement
   // is remembered and replayed automatically on every reconnect (see ws.onopen above).
-  function advertiseTopic(topic, type) {
-    desiredAdvertisements.set(topic, type);
-    sendAdvertise(topic, type);
+  // `latch` (default false) maps to ROS2 QoS DurabilityPolicy: true -> TRANSIENT_LOCAL,
+  // false -> VOLATILE (rosbridge_library's Advertise capability default). Pass true for topics
+  // that already have a TRANSIENT_LOCAL publisher elsewhere (e.g. /visual_markers, published
+  // TRANSIENT_LOCAL by operator_view_marker_bridge_node.py) to avoid a durability mismatch that
+  // forces web_bridge to fall back to VOLATILE for all subscribers of that topic.
+  function advertiseTopic(topic, type, latch = false) {
+    desiredAdvertisements.set(topic, { type, latch });
+    sendAdvertise(topic, type, latch);
   }
 
   function publishTopic(topic, msg) {
